@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/mfulz/portgeist/internal/config"
+	"github.com/mfulz/portgeist/internal/proxy"
 )
 
 func StartServer(cfg *config.Config) error {
@@ -57,8 +58,7 @@ func handleConn(conn net.Conn, cfg *config.Config) {
 
 	cmd := strings.TrimSpace(line)
 
-	switch cmd {
-	case "proxy list":
+	if cmd == "proxy list" {
 		names := make([]string, 0, len(cfg.Proxies.Proxies))
 		for name := range cfg.Proxies.Proxies {
 			names = append(names, name)
@@ -66,7 +66,21 @@ func handleConn(conn net.Conn, cfg *config.Config) {
 		resp, _ := json.Marshal(names)
 		conn.Write(resp)
 		conn.Write([]byte("\n"))
-	default:
+
+	} else if strings.HasPrefix(cmd, "proxy start ") {
+		name := strings.TrimPrefix(cmd, "proxy start ")
+		if proxyCfg, ok := cfg.Proxies.Proxies[name]; ok {
+			err := proxy.StartProxy(name, proxyCfg, cfg)
+			if err != nil {
+				conn.Write([]byte(fmt.Sprintf("error: %v\n", err)))
+			} else {
+				conn.Write([]byte("ok\n"))
+			}
+		} else {
+			conn.Write([]byte("error: unknown proxy\n"))
+		}
+
+	} else {
 		conn.Write([]byte("unknown command\n"))
 	}
 }

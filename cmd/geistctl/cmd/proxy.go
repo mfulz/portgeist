@@ -28,6 +28,28 @@ var proxyListCmd = &cobra.Command{
 	},
 }
 
+var proxyStartCmd = &cobra.Command{
+	Use:   "start",
+	Short: "Start a proxy by name",
+	Run: func(cmd *cobra.Command, args []string) {
+		if proxyName == "" {
+			fmt.Println("Please provide a proxy name with -p")
+			return
+		}
+		err := control.SendCommand(fmt.Sprintf("proxy start %s", proxyName))
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return
+		}
+		fmt.Printf("Requested start of proxy: %s\n", proxyName)
+	},
+}
+
+var proxyName string
+
 func init() {
+	proxyStartCmd.Flags().StringVarP(&proxyName, "proxy", "p", "", "Proxy name")
+
 	ProxyCmd.AddCommand(proxyListCmd)
+	ProxyCmd.AddCommand(proxyStartCmd)
 }

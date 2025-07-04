@@ -12,7 +12,7 @@ import (
 
 const defaultSocket = "/tmp/portgeist.sock"
 
-// listProxies connects to the geistd daemon and requests the list of configured proxies.
+// ListProxies connects to the geistd daemon and requests the list of configured proxies.
 func ListProxies() ([]string, error) {
 	conn, err := net.DialTimeout("unix", defaultSocket, 2*time.Second)
 	if err != nil {
@@ -40,4 +40,16 @@ func ListProxies() ([]string, error) {
 	}
 
 	return proxies, nil
+}
+
+// SendCommand sends a raw command over the control socket and returns any error.
+func SendCommand(cmd string) error {
+	conn, err := net.Dial("unix", defaultSocket)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	_, err = fmt.Fprintln(conn, cmd)
+	return err
 }
