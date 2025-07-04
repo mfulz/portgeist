@@ -9,6 +9,7 @@ import (
 
 	"github.com/mfulz/portgeist/interfaces"
 	"github.com/mfulz/portgeist/internal/config"
+	"github.com/mfulz/portgeist/protocol"
 )
 
 // StartAutostartProxies starts all proxies marked as autostart=true
@@ -103,4 +104,31 @@ func StopProxy(name string, proxyCfg config.Proxy, cfg *config.Config) error {
 	}
 
 	return backend.Stop(name)
+}
+
+// GetProxyStatus returns runtime information about the given proxy.
+func GetProxyStatus(name string, proxyCfg config.Proxy, cfg *config.Config) (*protocol.StatusResponse, error) {
+	hostCfg, ok := cfg.Hosts[proxyCfg.Default]
+	if !ok {
+		return nil, fmt.Errorf("host '%s' not found", proxyCfg.Default)
+	}
+
+	backendName := hostCfg.Backend
+	if backendName == "" {
+		backendName = "ssh_exec"
+	}
+
+	backend, err := interfaces.GetBackend(backendName)
+	if err != nil {
+		return nil, err
+	}
+
+	pid, running := backend.Status(name)
+
+	return &protocol.StatusResponse{
+		Name:    name,
+		Backend: backendName,
+		Running: running,
+		PID:     pid,
+	}, nil
 }

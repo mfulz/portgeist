@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/mfulz/portgeist/internal/control"
@@ -108,24 +109,40 @@ var proxyStopCmd = &cobra.Command{
 	},
 }
 
-var proxyStopCmdOld = &cobra.Command{
-	Use:   "stop",
-	Short: "Stop a proxy by name",
+var proxyStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show status of a proxy",
 	Run: func(cmd *cobra.Command, args []string) {
 		if proxyName == "" {
 			fmt.Println("Please provide a proxy name with -p")
 			return
 		}
-		_, err := control.SendCommandWithAuth(fmt.Sprintf("proxy stop %s", proxyName))
+
+		req := protocol.Request{
+			Type: protocol.CmdProxyStatus,
+			Data: protocol.StatusRequest{Name: proxyName},
+		}
+
+		resp, err := control.SendStructuredRequest(req)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return
 		}
-		fmt.Printf("Requested stop of proxy: %s\n", proxyName)
+		if resp.Status != "ok" {
+			fmt.Printf("Error: %s\n", resp.Error)
+			return
+		}
+
+		var status protocol.StatusResponse
+		bytes, _ := json.Marshal(resp.Data)
+		_ = json.Unmarshal(bytes, &status)
+
+		fmt.Printf("Proxy: %s\nBackend: %s\nRunning: %v\nPID: %d\n",
+			status.Name, status.Backend, status.Running, status.PID)
 	},
 }
 
-var proxyStatusCmd = &cobra.Command{
+var proxyStatusCmdOld = &cobra.Command{
 	Use:   "status",
 	Short: "Show status of a proxy",
 	Run: func(cmd *cobra.Command, args []string) {

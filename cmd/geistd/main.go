@@ -84,6 +84,34 @@ func main() {
 		return &protocol.Response{Status: "ok"}
 	})
 
+	dispatcher.Register(protocol.CmdProxyStatus, func(req *protocol.Request) *protocol.Response {
+		var payload protocol.StatusRequest
+		data, _ := json.Marshal(req.Data)
+		if err := json.Unmarshal(data, &payload); err != nil {
+			return &protocol.Response{Status: "error", Error: "invalid status payload"}
+		}
+
+		proxyCfg, ok := cfg.Proxies.Proxies[payload.Name]
+		if !ok {
+			return &protocol.Response{Status: "error", Error: "unknown proxy"}
+		}
+
+		user := "unauthenticated"
+		if req.Auth != nil {
+			user = req.Auth.User
+		}
+		if !control.IsControlAllowed(proxyCfg, user, !cfg.Control.Auth.Enabled) {
+			return &protocol.Response{Status: "error", Error: "access denied"}
+		}
+
+		status, err := proxy.GetProxyStatus(payload.Name, proxyCfg, cfg)
+		if err != nil {
+			return &protocol.Response{Status: "error", Error: err.Error()}
+		}
+
+		return &protocol.Response{Status: "ok", Data: status}
+	})
+
 	// Übergib Dispatcher an den Server
 	control.SetDispatcher(dispatcher)
 
