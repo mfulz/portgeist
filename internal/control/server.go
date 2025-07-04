@@ -3,6 +3,7 @@
 package control
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -54,36 +55,63 @@ func StartServerInstance(inst config.ControlInstance, cfg *config.Config) error 
 	return nil
 }
 
+// Authenticate verifies the request credentials based on the server configuration.
+// If auth is disabled, returns "unauthenticated" as user.
+// If enabled, checks the provided token against the configured control logins.
+// Returns the authenticated username and whether the authentication was successful.
+func Authenticate(req *protocol.Request, cfg *config.Config, required bool) (string, bool) {
+	if !required {
+		return "unauthenticated", true
+	}
+	if req.Auth == nil {
+		return "", false
+	}
+	entry, ok := cfg.Control.Logins[req.Auth.User]
+	if !ok || entry.Token != req.Auth.Token {
+		return "", false
+	}
+	return req.Auth.User, true
+}
+
+// handleConn handles an individual control connection.
+// It reads a JSON-encoded protocol.Request from the connection,
+// dispatches it via the global dispatcher, and writes the JSON response.
 func handleConn(conn net.Conn, inst config.ControlInstance, cfg *config.Config) {
 	defer conn.Close()
 
-	req, err := protocol.ReadRequest(conn)
-	if err != nil {
-		protocol.WriteResponse(conn, &protocol.Response{
-			Status: "error",
-			Error:  fmt.Sprintf("invalid request: %v", err),
-		})
-		return
-	}
+	decoder := json.NewDecoder(conn)
+	encoder := json.NewEncoder(conn)
 
-	// Dispatch über zentrale Registry
-	resp := dispatcher.Dispatch(req)
-	_ = protocol.WriteResponse(conn, resp)
-}
+	for {
+		var req protocol.Request
+		if err := decoder.Decode(&req); err != nil {
+			log.Printf("[control:%s] Failed to decode request: %v", inst.Name, err)
+			return
+		}
 
-func handleProxyCmd(conn net.Conn, name, user string, cfg *config.Config, skip bool, fn func(string, config.Proxy, *config.Config) error) {
-	proxyCfg, ok := cfg.Proxies.Proxies[name]
-	if !ok {
-		conn.Write([]byte("error: unknown proxy\n"))
-		return
-	}
-	if !IsControlAllowed(proxyCfg, user, skip) {
-		conn.Write([]byte("error: access denied\n"))
-		return
-	}
-	if err := fn(name, proxyCfg, cfg); err != nil {
-		conn.Write([]byte(fmt.Sprintf("error: %v\n", err)))
-	} else {
-		conn.Write([]byte("ok\n"))
+		user, ok := Authenticate(&req, cfg, inst.Auth.Enabled)
+		if !ok {
+			log.Printf("[control:%s] Invalid credentials for user: %s", inst.Name, req.Auth.User)
+			_ = encoder.Encode(&protocol.Response{
+				Status: "error",
+				Error:  "invalid credentials",
+			})
+			continue
+		}
+
+		if req.Auth == nil {
+			req.Auth = &protocol.Auth{}
+		}
+		req.Auth.User = user
+		resp := dispatcher.Dispatch(&req)
+		if err := encoder.Encode(resp); err != nil {
+			log.Printf("[control:%s] Failed to send response: %v", inst.Name, err)
+			return
+		}
+
+		if err := encoder.Encode(resp); err != nil {
+			log.Printf("[control:%s] Failed to send response: %v", inst.Name, err)
+			return
+		}
 	}
 }
