@@ -82,6 +82,41 @@ func GetProxyStatus(name string) (*ProxyStatus, error) {
 	return &status, nil
 }
 
+func ListProxiesWithAuth() ([]string, error) {
+	conf, err := controlcli.LoadClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := net.Dial("unix", conf.Socket)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	// Auth & Command
+	fmt.Fprintf(conn, "auth:%s:%s\n", conf.User, conf.Token)
+	fmt.Fprintf(conn, "proxy list\n")
+
+	reader := bufio.NewReader(conn)
+	raw, err := reader.ReadBytes('\n')
+	if err != nil {
+		return nil, err
+	}
+
+	// Check for daemon-side error before parsing
+	if strings.HasPrefix(string(raw), "error:") {
+		return nil, fmt.Errorf(strings.TrimSpace(string(raw)))
+	}
+
+	var proxies []string
+	if err := json.Unmarshal(raw, &proxies); err != nil {
+		return nil, fmt.Errorf("invalid response format: %w", err)
+	}
+
+	return proxies, nil
+}
+
 // ListProxies connects to the geistd daemon and requests the list of configured proxies.
 func ListProxies() ([]string, error) {
 	conn, err := net.DialTimeout("unix", defaultSocket, 2*time.Second)

@@ -17,7 +17,7 @@ var proxyListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all known proxies",
 	Run: func(cmd *cobra.Command, args []string) {
-		proxies, err := control.ListProxies()
+		proxies, err := control.ListProxiesWithAuth()
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return
