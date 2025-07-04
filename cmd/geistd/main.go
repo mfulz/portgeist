@@ -46,7 +46,12 @@ func main() {
 	log.Println("[geistd] Termination signal received. Stopping proxies...")
 
 	for name, p := range cfg.Proxies.Proxies {
-		backendName := p.Backend
+		hostCfg, ok := cfg.Hosts[p.Default]
+		if !ok {
+			log.Printf("[geistd] Host '%s' not found for proxy '%s'", p.Default, name)
+			continue
+		}
+		backendName := hostCfg.Backend
 		if backendName == "" {
 			backendName = "ssh_exec"
 		}

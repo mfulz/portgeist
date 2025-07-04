@@ -30,7 +30,18 @@ func StartAutostartProxies(cfg *config.Config) error {
 // StartProxy attempts to start a proxy via its defined backend,
 // first using the default host, then falling back to allowed hosts if needed.
 func StartProxy(name string, p config.Proxy, cfg *config.Config) error {
-	backendName := p.Backend
+	// Extract backend from default host
+	hostName := p.Default
+	if hostName == "" {
+		return fmt.Errorf("no default host set for proxy '%s'", name)
+	}
+
+	hostCfg, ok := cfg.Hosts[hostName]
+	if !ok {
+		return fmt.Errorf("host '%s' not found in config", hostName)
+	}
+
+	backendName := hostCfg.Backend
 	if backendName == "" {
 		backendName = "ssh_exec"
 	}

@@ -30,12 +30,12 @@ type Host struct {
 	Address string `mapstructure:"address"`
 	Port    int    `mapstructure:"port"`
 	Login   string `mapstructure:"login"`
+	Backend string `mapstructure:"backend"`
 }
 
 // Proxy defines a single proxy endpoint configuration.
 type Proxy struct {
 	Port            int      `mapstructure:"port"`
-	Backend         string   `mapstructure:"backend"`
 	Default         string   `mapstructure:"default"`
 	Allowed         []string `mapstructure:"allowed"`
 	Autostart       bool     `mapstructure:"autostart"`

@@ -134,7 +134,11 @@ func handleConn(conn net.Conn, cfg *config.Config) {
 	} else if strings.HasPrefix(cmd, "proxy stop ") {
 		name := strings.TrimPrefix(cmd, "proxy stop ")
 		handleProxyCmd(conn, name, authedUser, cfg, skipAuthChecks, func(n string, p config.Proxy, c *config.Config) error {
-			bname := p.Backend
+			hostCfg, ok := cfg.Hosts[p.Default]
+			if !ok {
+				return fmt.Errorf("host '%s' not found", p.Default)
+			}
+			bname := hostCfg.Backend
 			if bname == "" {
 				bname = "ssh_exec"
 			}
@@ -151,7 +155,12 @@ func handleConn(conn net.Conn, cfg *config.Config) {
 				conn.Write([]byte("error: access denied\n"))
 				return
 			}
-			backendName := proxyCfg.Backend
+			hostCfg, ok := cfg.Hosts[proxyCfg.Default]
+			if !ok {
+				conn.Write([]byte("null\n"))
+				return
+			}
+			backendName := hostCfg.Backend
 			if backendName == "" {
 				backendName = "ssh_exec"
 			}
@@ -184,7 +193,12 @@ func handleConn(conn net.Conn, cfg *config.Config) {
 				conn.Write([]byte("error: access denied\n"))
 				return
 			}
-			backendName := proxyCfg.Backend
+			hostCfg, ok := cfg.Hosts[proxyCfg.Default]
+			if !ok {
+				conn.Write([]byte("error: host not found\n"))
+				return
+			}
+			backendName := hostCfg.Backend
 			if backendName == "" {
 				backendName = "ssh_exec"
 			}
@@ -250,10 +264,17 @@ func handleConn(conn net.Conn, cfg *config.Config) {
 			return
 		}
 		// Stop and restart with new default
-		backendName := proxyCfg.Backend
+		hostCfg, ok := cfg.Hosts[target]
+		if !ok {
+			conn.Write([]byte("error: target host not found\n"))
+			return
+		}
+
+		backendName := hostCfg.Backend
 		if backendName == "" {
 			backendName = "ssh_exec"
 		}
+
 		backend, err := interfaces.GetBackend(backendName)
 		if err != nil {
 			conn.Write([]byte("error: backend error\n"))
