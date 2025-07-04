@@ -57,3 +57,17 @@ func WriteResponse(w io.Writer, resp *Response) error {
 	_, err = w.Write(bytes)
 	return err
 }
+
+// Encode encodes the given protocol request to the provided writer using JSON.
+// This is used for sending requests over a control connection.
+func Encode(w io.Writer, req *Request) error {
+	return json.NewEncoder(w).Encode(req)
+}
+
+// Decode reads and decodes a protocol response from the provided reader using JSON.
+// This is used for receiving responses over a control connection.
+func Decode(r io.Reader) (*Response, error) {
+	var resp Response
+	err := json.NewDecoder(r).Decode(&resp)
+	return &resp, err
+}

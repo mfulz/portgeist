@@ -13,10 +13,12 @@ import (
 )
 
 var (
-	proxyName   string
-	proxyHost   string
-	daemonName  string
-	controlUser string
+	proxyName     string
+	proxyHost     string
+	daemonName    string
+	controlUser   string
+	overrideAddr  string
+	overrideToken string
 )
 
 // ProxyCmd is the root command for proxy-related subcommands.
@@ -125,17 +127,26 @@ var proxySetActiveCmd = &cobra.Command{
 	},
 }
 
-// execWithAuth is a helper to send an authenticated request to the selected daemon.
+// execWithAuth sends a request to the configured or overridden daemon with optional authentication.
 func execWithAuth(cmdType string, payload interface{}, successMsg string) *protocol.Response {
 	cfg, err := controlcli.LoadCTLConfig()
 	if err != nil {
 		fmt.Printf("Error loading ctl config: %v\n", err)
 		return nil
 	}
+
 	if daemonName == "" {
 		daemonName = controlcli.GuessDefaultDaemon(cfg)
 	}
-	resp, err := controlcli.SendCommandWithAuth(cfg, daemonName, controlUser, cmdType, payload)
+
+	var resp *protocol.Response
+	if overrideAddr != "" {
+		// Use override (e.g. via --addr and --token)
+		resp, err = controlcli.SendDirectCommand(overrideAddr, overrideToken, controlUser, cmdType, payload)
+	} else {
+		resp, err = controlcli.SendCommandWithAuth(cfg, daemonName, controlUser, cmdType, payload)
+	}
+
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return nil
@@ -156,6 +167,8 @@ func init() {
 	ProxyCmd.PersistentFlags().StringVarP(&proxyHost, "host", "o", "", "Host name to use for setactive")
 	ProxyCmd.PersistentFlags().StringVarP(&daemonName, "daemon", "d", "", "Daemon name from ctl_config")
 	ProxyCmd.PersistentFlags().StringVarP(&controlUser, "user", "u", "admin", "Control user to authenticate as")
+	ProxyCmd.PersistentFlags().StringVar(&overrideAddr, "addr", "", "Direct override address for daemon (unix socket or host:port)")
+	ProxyCmd.PersistentFlags().StringVar(&overrideToken, "token", "", "Auth token for manually specified daemon")
 
 	// attach commands
 	ProxyCmd.AddCommand(proxyStartCmd)

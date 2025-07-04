@@ -65,6 +65,66 @@ func SendCommandWithAuth(cfg *CTLConfig, daemonName, userName, command string, d
 	return &resp, nil
 }
 
+// connectToDaemon establishes a connection to the Portgeist daemon using either
+// a Unix socket or a TCP address, depending on the mode specified.
+// It returns a net.Conn ready for protocol exchange.
+//
+// Valid modes:
+// - "unix": uses a local Unix domain socket (addr = path to socket file)
+// - "tcp": connects to a remote daemon over TCP (addr = host:port)
+func connectToDaemon(mode, addr string) (net.Conn, error) {
+	switch mode {
+	case "unix":
+		return net.Dial("unix", addr)
+	case "tcp":
+		return net.Dial("tcp", addr)
+	default:
+		return nil, fmt.Errorf("unsupported mode: %s", mode)
+	}
+}
+
+// SendDirectCommand sends a request directly to a daemon using a raw address
+// (either UNIX socket path or TCP host:port), bypassing any configured client mappings.
+// This is used for ad-hoc communication with daemons not listed in the ctl_config.
+func SendDirectCommand(addr, token, user, command string, payload interface{}) (*protocol.Response, error) {
+	var mode string
+	if addr == "" {
+		return nil, fmt.Errorf("address required")
+	}
+
+	if len(addr) > 0 && addr[0] == '/' {
+		mode = "unix"
+	} else {
+		mode = "tcp"
+	}
+
+	conn, err := connectToDaemon(mode, addr)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	req := &protocol.Request{
+		Type: command,
+		Auth: &protocol.Auth{
+			User:  user,
+			Token: token,
+		},
+		Data: payload,
+	}
+
+	if err := protocol.Encode(conn, req); err != nil {
+		return nil, err
+	}
+
+	resp, err := protocol.Decode(conn)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
 // ListAvailableDaemons returns a list of configured daemon names.
 func ListAvailableDaemons(cfg *CTLConfig) []string {
 	var list []string
