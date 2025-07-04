@@ -19,57 +19,42 @@ func SetDispatcher(d *dispatch.Dispatcher) {
 	dispatcher = d
 }
 
-func StartServer(cfg *config.Config) error {
-	if cfg.Control.Mode != "unix" {
-		return fmt.Errorf("only unix control mode supported for now")
+// StartServerInstance starts a control listener based on the given configuration.
+// Supports "unix" and "tcp" control modes.
+func StartServerInstance(inst config.ControlInstance, cfg *config.Config) error {
+	var ln net.Listener
+	var err error
+
+	switch inst.Mode {
+	case "unix":
+		_ = os.Remove(inst.Listen) // Remove stale socket
+		ln, err = net.Listen("unix", inst.Listen)
+	case "tcp":
+		ln, err = net.Listen("tcp", inst.Listen)
+	default:
+		return fmt.Errorf("unsupported control mode: %s", inst.Mode)
 	}
 
-	// Clean up existing socket
-	if _, err := os.Stat(cfg.Control.Socket); err == nil {
-		_ = os.Remove(cfg.Control.Socket)
-	}
-
-	listener, err := net.Listen("unix", cfg.Control.Socket)
 	if err != nil {
-		return fmt.Errorf("failed to bind unix socket: %w", err)
+		return fmt.Errorf("failed to listen: %w", err)
 	}
-
-	log.Printf("[control] Listening on Unix socket: %s", cfg.Control.Socket)
 
 	go func() {
+		defer ln.Close()
 		for {
-			conn, err := listener.Accept()
+			conn, err := ln.Accept()
 			if err != nil {
-				log.Printf("[control] Accept error: %v", err)
+				log.Printf("[control:%s] Accept error: %v", inst.Name, err)
 				continue
 			}
-			go handleConn(conn, cfg)
+			go handleConn(conn, inst, cfg)
 		}
 	}()
-
-	// Optional TCP listen
-	if cfg.Control.Listen != "" {
-		go func() {
-			tcpLn, err := net.Listen("tcp", cfg.Control.Listen)
-			if err != nil {
-				log.Fatalf("[control] TCP listen failed: %v", err)
-			}
-			log.Printf("[control] Listening on TCP: %s", cfg.Control.Listen)
-			for {
-				conn, err := tcpLn.Accept()
-				if err != nil {
-					log.Printf("[control] TCP accept error: %v", err)
-					continue
-				}
-				go handleConn(conn, cfg)
-			}
-		}()
-	}
 
 	return nil
 }
 
-func handleConn(conn net.Conn, cfg *config.Config) {
+func handleConn(conn net.Conn, inst config.ControlInstance, cfg *config.Config) {
 	defer conn.Close()
 
 	req, err := protocol.ReadRequest(conn)

@@ -13,10 +13,10 @@ import (
 
 // Config represents the full structure of the portgeist configuration file.
 type Config struct {
-	Logins  map[string]Login `mapstructure:"logins"`
-	Hosts   map[string]Host  `mapstructure:"hosts"`
-	Proxies ProxiesConfig    `mapstructure:"proxies"`
-	Control ControlConfig    `mapstructure:"control"`
+	Logins  map[string]Login   `mapstructure:"logins"`
+	Hosts   map[string]Host    `mapstructure:"hosts"`
+	Proxies ProxiesConfig      `mapstructure:"proxies"`
+	Control ControlMultiConfig `mapstructure:"control"`
 }
 
 // Login holds SSH/VPN credential information.
@@ -60,6 +60,21 @@ type ControlConfig struct {
 	Listen string                  `mapstructure:"listen"` // only used if mode == "tcp"
 	Auth   AuthSettings            `mapstructure:"auth"`
 	Logins map[string]ControlLogin `mapstructure:"logins"`
+}
+
+// ControlInstance describes a single control interface (e.g. unix socket or TCP listener).
+type ControlInstance struct {
+	Name    string       `mapstructure:"name"`    // instance identifier
+	Enabled bool         `mapstructure:"enabled"` // whether this instance is active
+	Mode    string       `mapstructure:"mode"`    // "unix" or "tcp"
+	Listen  string       `mapstructure:"listen"`  // address or socket path
+	Auth    AuthSettings `mapstructure:"auth"`    // authentication settings
+}
+
+// ControlMultiConfig supports multiple control instances with distinct settings.
+type ControlMultiConfig struct {
+	Logins    map[string]ControlLogin `mapstructure:"logins"`    // known control users and tokens
+	Instances []ControlInstance       `mapstructure:"instances"` // enabled control endpoints
 }
 
 // AuthSettings allows optional authentication for remote control.

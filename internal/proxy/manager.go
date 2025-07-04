@@ -132,3 +132,29 @@ func GetProxyStatus(name string, proxyCfg config.Proxy, cfg *config.Config) (*pr
 		PID:     pid,
 	}, nil
 }
+
+func GetProxyInfo(name string, p config.Proxy, cfg *config.Config) (*protocol.InfoResponse, error) {
+	hostCfg, ok := cfg.Hosts[p.Default]
+	if !ok {
+		return nil, fmt.Errorf("host not found")
+	}
+	backend := hostCfg.Backend
+	if backend == "" {
+		backend = "ssh_exec"
+	}
+	be, err := interfaces.GetBackend(backend)
+	if err != nil {
+		return nil, err
+	}
+	pid, running := be.Status(name)
+	return &protocol.InfoResponse{
+		Name:    name,
+		Backend: backend,
+		Host:    hostCfg.Address,
+		Port:    hostCfg.Port,
+		Login:   hostCfg.Login,
+		Running: running,
+		PID:     pid,
+		Allowed: p.AllowedControls,
+	}, nil
+}
