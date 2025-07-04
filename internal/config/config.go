@@ -5,6 +5,8 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/spf13/viper"
 )
@@ -65,6 +67,12 @@ type AuthSettings struct {
 func LoadConfig() (*Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
+
+	// Add high-priority config path: ~/.portgeist
+	if home, err := os.UserHomeDir(); err == nil {
+		viper.AddConfigPath(filepath.Join(home, ".portgeist"))
+	}
+
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("./config")
 	viper.AddConfigPath("/etc/portgeist")
