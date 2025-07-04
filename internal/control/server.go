@@ -11,10 +11,18 @@ import (
 	"os"
 	"strings"
 
+	"github.com/mfulz/portgeist/dispatch"
 	"github.com/mfulz/portgeist/interfaces"
 	"github.com/mfulz/portgeist/internal/config"
 	"github.com/mfulz/portgeist/internal/proxy"
+	"github.com/mfulz/portgeist/protocol"
 )
+
+var dispatcher *dispatch.Dispatcher
+
+func SetDispatcher(d *dispatch.Dispatcher) {
+	dispatcher = d
+}
 
 func StartServer(cfg *config.Config) error {
 	if cfg.Control.Mode != "unix" {
@@ -67,6 +75,23 @@ func StartServer(cfg *config.Config) error {
 }
 
 func handleConn(conn net.Conn, cfg *config.Config) {
+	defer conn.Close()
+
+	req, err := protocol.ReadRequest(conn)
+	if err != nil {
+		protocol.WriteResponse(conn, &protocol.Response{
+			Status: "error",
+			Error:  fmt.Sprintf("invalid request: %v", err),
+		})
+		return
+	}
+
+	// Dispatch über zentrale Registry
+	resp := dispatcher.Dispatch(req)
+	_ = protocol.WriteResponse(conn, resp)
+}
+
+func handleConnBak(conn net.Conn, cfg *config.Config) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
 
@@ -151,7 +176,7 @@ func handleConn(conn net.Conn, cfg *config.Config) {
 	} else if strings.HasPrefix(cmd, "proxy status ") {
 		name := strings.TrimPrefix(cmd, "proxy status ")
 		if proxyCfg, ok := cfg.Proxies.Proxies[name]; ok {
-			if !isControlAllowed(proxyCfg, authedUser, skipAuthChecks) {
+			if !IsControlAllowed(proxyCfg, authedUser, skipAuthChecks) {
 				conn.Write([]byte("error: access denied\n"))
 				return
 			}
@@ -189,7 +214,7 @@ func handleConn(conn net.Conn, cfg *config.Config) {
 	} else if strings.HasPrefix(cmd, "proxy info ") {
 		name := strings.TrimPrefix(cmd, "proxy info ")
 		if proxyCfg, ok := cfg.Proxies.Proxies[name]; ok {
-			if !isControlAllowed(proxyCfg, authedUser, skipAuthChecks) {
+			if !IsControlAllowed(proxyCfg, authedUser, skipAuthChecks) {
 				conn.Write([]byte("error: access denied\n"))
 				return
 			}
@@ -248,7 +273,7 @@ func handleConn(conn net.Conn, cfg *config.Config) {
 			conn.Write([]byte("error: proxy not found\n"))
 			return
 		}
-		if !isControlAllowed(proxyCfg, authedUser, skipAuthChecks) {
+		if !IsControlAllowed(proxyCfg, authedUser, skipAuthChecks) {
 			conn.Write([]byte("error: access denied\n"))
 			return
 		}
@@ -299,25 +324,13 @@ func handleConn(conn net.Conn, cfg *config.Config) {
 	}
 }
 
-func isControlAllowed(proxyCfg config.Proxy, user string, skip bool) bool {
-	if skip {
-		return true
-	}
-	for _, u := range proxyCfg.AllowedControls {
-		if u == user {
-			return true
-		}
-	}
-	return false
-}
-
 func handleProxyCmd(conn net.Conn, name, user string, cfg *config.Config, skip bool, fn func(string, config.Proxy, *config.Config) error) {
 	proxyCfg, ok := cfg.Proxies.Proxies[name]
 	if !ok {
 		conn.Write([]byte("error: unknown proxy\n"))
 		return
 	}
-	if !isControlAllowed(proxyCfg, user, skip) {
+	if !IsControlAllowed(proxyCfg, user, skip) {
 		conn.Write([]byte("error: access denied\n"))
 		return
 	}

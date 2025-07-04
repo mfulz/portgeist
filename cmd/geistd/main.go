@@ -5,13 +5,16 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/mfulz/portgeist/dispatch"
 	_ "github.com/mfulz/portgeist/internal/backend"
 	"github.com/mfulz/portgeist/internal/control"
+	"github.com/mfulz/portgeist/protocol"
 
 	"github.com/mfulz/portgeist/interfaces"
 	"github.com/mfulz/portgeist/internal/config"
@@ -25,6 +28,37 @@ func main() {
 	}
 
 	log.Println("[geistd] Configuration loaded successfully")
+	// Global dispatcher registry
+	dispatcher := dispatch.New()
+
+	dispatcher.Register(protocol.CmdProxyStart, func(req *protocol.Request) *protocol.Response {
+		var payload protocol.StartRequest
+		data, _ := json.Marshal(req.Data)
+		if err := json.Unmarshal(data, &payload); err != nil {
+			return &protocol.Response{Status: "error", Error: "invalid start payload"}
+		}
+
+		proxyCfg, ok := cfg.Proxies.Proxies[payload.Name]
+		if !ok {
+			return &protocol.Response{Status: "error", Error: "unknown proxy"}
+		}
+
+		user := "unauthenticated"
+		if req.Auth != nil {
+			user = req.Auth.User
+		}
+		if !control.IsControlAllowed(proxyCfg, user, !cfg.Control.Auth.Enabled) {
+			return &protocol.Response{Status: "error", Error: "access denied"}
+		}
+
+		if err := proxy.StartProxy(payload.Name, proxyCfg, cfg); err != nil {
+			return &protocol.Response{Status: "error", Error: err.Error()}
+		}
+		return &protocol.Response{Status: "ok"}
+	})
+
+	// Übergib Dispatcher an den Server
+	control.SetDispatcher(dispatcher)
 
 	if err := control.StartServer(cfg); err != nil {
 		log.Fatalf("[geistd] Control interface failed: %v", err)

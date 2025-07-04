@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/mfulz/portgeist/internal/control"
+	"github.com/mfulz/portgeist/protocol"
 	"github.com/spf13/cobra"
 )
 
@@ -16,6 +17,34 @@ var (
 var ProxyCmd = &cobra.Command{
 	Use:   "proxy",
 	Short: "Manage and inspect proxies",
+}
+
+var proxyStartCmd = &cobra.Command{
+	Use:   "start",
+	Short: "Start a proxy by name",
+	Run: func(cmd *cobra.Command, args []string) {
+		if proxyName == "" {
+			fmt.Println("Please provide a proxy name with -p")
+			return
+		}
+
+		req := protocol.Request{
+			Type: protocol.CmdProxyStart,
+			Data: protocol.StartRequest{Name: proxyName},
+		}
+
+		resp, err := control.SendStructuredRequest(req)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return
+		}
+		if resp.Status != "ok" {
+			fmt.Printf("Error: %s\n", resp.Error)
+			return
+		}
+
+		fmt.Printf("Requested start of proxy: %s\n", proxyName)
+	},
 }
 
 var proxyInfoCmd = &cobra.Command{
@@ -51,7 +80,7 @@ var proxyListCmd = &cobra.Command{
 	},
 }
 
-var proxyStartCmd = &cobra.Command{
+var proxyStartCmdOld = &cobra.Command{
 	Use:   "start",
 	Short: "Start a proxy by name",
 	Run: func(cmd *cobra.Command, args []string) {
