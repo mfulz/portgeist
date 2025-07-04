@@ -1,0 +1,34 @@
+
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Output folders
+/bin/
+/build/
+/dist/
+
+# Dependency directories (Go modules)
+/vendor/
+
+# IDE/editor settings
+.vscode/
+.idea/
+*.swp
+*~
+
+# Logs and temp files
+*.log
+*.tmp
+*.cache
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Sensitive config (if any)
+config.yaml
