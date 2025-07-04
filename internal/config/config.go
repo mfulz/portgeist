@@ -1,0 +1,82 @@
+// Package config provides loading and parsing of the Portgeist configuration
+// file using Viper. It defines the full configuration schema and exposes
+// functions to access it at runtime.
+package config
+
+import (
+	"fmt"
+
+	"github.com/spf13/viper"
+)
+
+// Config represents the full structure of the portgeist configuration file.
+type Config struct {
+	Logins  map[string]Login `mapstructure:"logins"`
+	Hosts   map[string]Host  `mapstructure:"hosts"`
+	Proxies ProxiesConfig    `mapstructure:"proxies"`
+	Control ControlConfig    `mapstructure:"control"`
+}
+
+// Login holds SSH/VPN credential information.
+type Login struct {
+	User     string `mapstructure:"user"`
+	Password string `mapstructure:"password"`
+}
+
+// Host defines a remote endpoint to connect to.
+type Host struct {
+	Address string `mapstructure:"address"`
+	Port    int    `mapstructure:"port"`
+	Login   string `mapstructure:"login"`
+}
+
+// Proxy defines a single proxy endpoint configuration.
+type Proxy struct {
+	Port      int      `mapstructure:"port"`
+	Backend   string   `mapstructure:"backend"`
+	Default   string   `mapstructure:"default"`
+	Allowed   []string `mapstructure:"allowed"`
+	Autostart bool     `mapstructure:"autostart"`
+}
+
+// ProxiesConfig holds all proxies and the global bind setting.
+type ProxiesConfig struct {
+	Bind    string           `mapstructure:"bind"`
+	Proxies map[string]Proxy `mapstructure:",remain"`
+}
+
+// ControlConfig defines how geistctl communicates with the daemon.
+type ControlConfig struct {
+	Mode   string       `mapstructure:"mode"`   // "unix" or "tcp"
+	Socket string       `mapstructure:"socket"` // path to unix socket
+	Listen string       `mapstructure:"listen"` // only used if mode == "tcp"
+	Auth   AuthSettings `mapstructure:"auth"`
+}
+
+// AuthSettings allows optional authentication for remote control.
+type AuthSettings struct {
+	Enabled bool   `mapstructure:"enabled"`
+	Token   string `mapstructure:"token"`
+}
+
+// LoadConfig loads the portgeist configuration from disk using Viper.
+// It searches for a file named config.yaml in the current working directory
+// or common fallback paths, and unmarshals the content into a typed struct.
+func LoadConfig() (*Config, error) {
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(".")
+	viper.AddConfigPath("./config")
+	viper.AddConfigPath("/etc/portgeist")
+
+	if err := viper.ReadInConfig(); err != nil {
+		return nil, fmt.Errorf("error reading config file: %w", err)
+	}
+
+	var cfg Config
+	if err := viper.Unmarshal(&cfg); err != nil {
+		return nil, fmt.Errorf("unable to decode config into struct: %w", err)
+	}
+
+	return &cfg, nil
+}
