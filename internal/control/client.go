@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"time"
@@ -14,6 +15,50 @@ import (
 )
 
 const defaultSocket = "/tmp/portgeist.sock"
+
+type ProxyInfo struct {
+	Name         string   `json:"name"`
+	Port         int      `json:"port"`
+	Backend      string   `json:"backend"`
+	Default      string   `json:"default"`
+	Allowed      []string `json:"allowed"`
+	Autostart    bool     `json:"autostart"`
+	Running      bool     `json:"running"`
+	PID          int      `json:"pid"`
+	AllowedUsers []string `json:"allowed_users"`
+}
+
+func GetProxyInfoWithAuth(name string) (*ProxyInfo, error) {
+	conf, err := controlcli.LoadClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := net.Dial("unix", conf.Socket)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	fmt.Fprintf(conn, "auth:%s:%s\n", conf.User, conf.Token)
+	fmt.Fprintf(conn, "proxy info %s\n", name)
+
+	raw, err := io.ReadAll(conn)
+	if err != nil {
+		return nil, err
+	}
+
+	if strings.HasPrefix(string(raw), "error:") {
+		return nil, fmt.Errorf(strings.TrimSpace(string(raw)))
+	}
+
+	var info ProxyInfo
+	if err := json.Unmarshal(raw, &info); err != nil {
+		return nil, fmt.Errorf("invalid response: %w", err)
+	}
+
+	return &info, nil
+}
 
 type ProxyStatus struct {
 	Name    string `json:"name"`

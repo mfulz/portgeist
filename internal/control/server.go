@@ -159,7 +159,51 @@ func handleConn(conn net.Conn, cfg *config.Config) {
 			}
 		}
 		conn.Write([]byte("null\n"))
+	} else if strings.HasPrefix(cmd, "proxy info ") {
+		name := strings.TrimPrefix(cmd, "proxy info ")
+		if proxyCfg, ok := cfg.Proxies.Proxies[name]; ok {
+			if !isControlAllowed(proxyCfg, authedUser, skipAuthChecks) {
+				conn.Write([]byte("error: access denied\n"))
+				return
+			}
+			backendName := proxyCfg.Backend
+			if backendName == "" {
+				backendName = "ssh_exec"
+			}
+			backend, err := interfaces.GetBackend(backendName)
+			if err != nil {
+				conn.Write([]byte("error: backend error\n"))
+				return
+			}
+			pid := 0
+			running := false
+			if statusable, ok := backend.(interface {
+				Status(name string) (int, bool)
+			}); ok {
+				pid, running = statusable.Status(name)
+			}
 
+			out := map[string]interface{}{
+				"name":          name,
+				"port":          proxyCfg.Port,
+				"backend":       backendName,
+				"default":       proxyCfg.Default,
+				"allowed":       proxyCfg.Allowed,
+				"autostart":     proxyCfg.Autostart,
+				"running":       running,
+				"pid":           pid,
+				"allowed_users": proxyCfg.AllowedControls,
+			}
+			data, err := json.MarshalIndent(out, "", "  ")
+			if err != nil {
+				conn.Write([]byte("error: json marshal failed\n"))
+				return
+			}
+			conn.Write(data)
+			conn.Write([]byte("\n"))
+			return
+		}
+		conn.Write([]byte("error: unknown proxy\n"))
 	} else {
 		conn.Write([]byte("unknown command\n"))
 	}

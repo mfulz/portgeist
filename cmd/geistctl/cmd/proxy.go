@@ -13,6 +13,24 @@ var ProxyCmd = &cobra.Command{
 	Short: "Manage and inspect proxies",
 }
 
+var proxyInfoCmd = &cobra.Command{
+	Use:   "info",
+	Short: "Show detailed info about a proxy",
+	Run: func(cmd *cobra.Command, args []string) {
+		if proxyName == "" {
+			fmt.Println("Please provide a proxy name with -p")
+			return
+		}
+		info, err := control.GetProxyInfoWithAuth(proxyName)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return
+		}
+		fmt.Printf("Proxy: %s\nBackend: %s\nPort: %d\nDefault Host: %s\nRunning: %v (PID %d)\nAutostart: %v\nAllowed Hosts: %v\nAllowed Users: %v\n",
+			info.Name, info.Backend, info.Port, info.Default, info.Running, info.PID, info.Autostart, info.Allowed, info.AllowedUsers)
+	},
+}
+
 var proxyListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all known proxies",
@@ -83,10 +101,12 @@ var proxyStatusCmd = &cobra.Command{
 var proxyName string
 
 func init() {
+	proxyInfoCmd.Flags().StringVarP(&proxyName, "proxy", "p", "", "Proxy name")
 	proxyStartCmd.Flags().StringVarP(&proxyName, "proxy", "p", "", "Proxy name")
 	proxyStopCmd.Flags().StringVarP(&proxyName, "proxy", "p", "", "Proxy name")
 	proxyStatusCmd.Flags().StringVarP(&proxyName, "proxy", "p", "", "Proxy name")
 
+	ProxyCmd.AddCommand(proxyInfoCmd)
 	ProxyCmd.AddCommand(proxyListCmd)
 	ProxyCmd.AddCommand(proxyStartCmd)
 	ProxyCmd.AddCommand(proxyStopCmd)
