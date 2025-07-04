@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	_ "github.com/mfulz/portgeist/internal/backend"
+	"github.com/mfulz/portgeist/internal/control"
 
 	"github.com/mfulz/portgeist/interfaces"
 	"github.com/mfulz/portgeist/internal/config"
@@ -24,6 +25,10 @@ func main() {
 	}
 
 	log.Println("[geistd] Configuration loaded successfully")
+
+	if err := control.StartServer(cfg); err != nil {
+		log.Fatalf("[geistd] Control interface failed: %v", err)
+	}
 
 	err = proxy.StartAutostartProxies(cfg)
 	if err != nil {
