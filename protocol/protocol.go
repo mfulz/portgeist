@@ -52,11 +52,6 @@ type InfoRequest struct {
 	Name string `json:"name"`
 }
 
-type SetActiveRequest struct {
-	Name string `json:"name"`
-	Host string `json:"host"`
-}
-
 type StatusResponse struct {
 	Name    string `json:"name"`
 	Backend string `json:"backend"`
@@ -74,4 +69,10 @@ type InfoResponse struct {
 	Running bool     `json:"running"`
 	PID     int      `json:"pid"`
 	Allowed []string `json:"allowed"`
+}
+
+// SetActiveRequest sets the active host for a proxy.
+type SetActiveRequest struct {
+	Name string `json:"name"`
+	Host string `json:"host"`
 }

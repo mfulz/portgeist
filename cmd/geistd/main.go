@@ -179,6 +179,44 @@ func main() {
 		return &protocol.Response{Status: "ok", Data: resp}
 	})
 
+	dispatcher.Register(protocol.CmdProxySetActive, func(req *protocol.Request) *protocol.Response {
+		var payload protocol.SetActiveRequest
+		data, _ := json.Marshal(req.Data)
+		if err := json.Unmarshal(data, &payload); err != nil {
+			return &protocol.Response{Status: "error", Error: "invalid setactive payload"}
+		}
+
+		proxyCfg, ok := cfg.Proxies.Proxies[payload.Name]
+		if !ok {
+			return &protocol.Response{Status: "error", Error: "unknown proxy"}
+		}
+
+		user := "unauthenticated"
+		if req.Auth != nil {
+			user = req.Auth.User
+		}
+		if !control.IsControlAllowed(proxyCfg, user, !cfg.Control.Auth.Enabled) {
+			return &protocol.Response{Status: "error", Error: "access denied"}
+		}
+
+		// Validate new host
+		if _, ok := cfg.Hosts[payload.Host]; !ok {
+			return &protocol.Response{Status: "error", Error: "unknown host"}
+		}
+
+		// Set active host (for now directly on config object)
+		proxyCfg.Default = payload.Host
+
+		// Restart proxy if running
+		_ = proxy.StopProxy(payload.Name, proxyCfg, cfg)
+		err := proxy.StartProxy(payload.Name, proxyCfg, cfg)
+		if err != nil {
+			return &protocol.Response{Status: "error", Error: err.Error()}
+		}
+
+		return &protocol.Response{Status: "ok"}
+	})
+
 	// Übergib Dispatcher an den Server
 	control.SetDispatcher(dispatcher)
 
