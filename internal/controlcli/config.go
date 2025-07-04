@@ -1,3 +1,5 @@
+// Package controlcli handles loading and managing local geistctl configuration.
+// This includes user tokens and known daemon connection targets.
 package controlcli
 
 import (
@@ -5,37 +7,37 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
 )
 
-type ClientConfig struct {
-	User   string `mapstructure:"user"`
-	Token  string `mapstructure:"token"`
-	Socket string `mapstructure:"socket"`
-	TCP    string `mapstructure:"tcp"`
+// UserConfig represents authentication info for a specific logical user.
+type UserConfig struct {
+	Token string `yaml:"token"`
 }
 
-var cfg *ClientConfig
+// DaemonConfig represents one connection target (unix socket or TCP).
+type DaemonConfig struct {
+	Socket string `yaml:"socket,omitempty"`
+	TCP    string `yaml:"tcp,omitempty"`
+}
 
-func LoadClientConfig() (*ClientConfig, error) {
-	if cfg != nil {
-		return cfg, nil
+// CTLConfig holds the entire client-side geistctl configuration.
+type CTLConfig struct {
+	Users   map[string]UserConfig   `yaml:"users"`
+	Daemons map[string]DaemonConfig `yaml:"daemons"`
+}
+
+// LoadCTLConfig loads ~/.portgeist/ctl_config.yaml or returns an error.
+func LoadCTLConfig() (*CTLConfig, error) {
+	cfgPath := filepath.Join(os.Getenv("HOME"), ".portgeistctl", "config.yaml")
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config.yaml: %w", err)
 	}
 
-	home, _ := os.UserHomeDir()
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(filepath.Join(home, ".portgeistctl"))
-
-	if err := viper.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
+	var config CTLConfig
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse config.yaml: %w", err)
 	}
-
-	var c ClientConfig
-	if err := viper.Unmarshal(&c); err != nil {
-		return nil, fmt.Errorf("unmarshal config: %w", err)
-	}
-
-	cfg = &c
-	return cfg, nil
+	return &config, nil
 }
