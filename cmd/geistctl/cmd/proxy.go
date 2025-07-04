@@ -36,7 +36,7 @@ var proxyStartCmd = &cobra.Command{
 			fmt.Println("Please provide a proxy name with -p")
 			return
 		}
-		err := control.SendCommand(fmt.Sprintf("proxy start %s", proxyName))
+		err := control.SendCommandWithAuth(fmt.Sprintf("proxy start %s", proxyName))
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return
@@ -53,7 +53,7 @@ var proxyStopCmd = &cobra.Command{
 			fmt.Println("Please provide a proxy name with -p")
 			return
 		}
-		err := control.SendCommand(fmt.Sprintf("proxy stop %s", proxyName))
+		err := control.SendCommandWithAuth(fmt.Sprintf("proxy stop %s", proxyName))
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return
@@ -70,7 +70,7 @@ var proxyStatusCmd = &cobra.Command{
 			fmt.Println("Please provide a proxy name with -p")
 			return
 		}
-		status, err := control.GetProxyStatus(proxyName)
+		status, err := control.GetProxyStatusWithAuth(proxyName)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return

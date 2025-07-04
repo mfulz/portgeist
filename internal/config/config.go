@@ -34,11 +34,12 @@ type Host struct {
 
 // Proxy defines a single proxy endpoint configuration.
 type Proxy struct {
-	Port      int      `mapstructure:"port"`
-	Backend   string   `mapstructure:"backend"`
-	Default   string   `mapstructure:"default"`
-	Allowed   []string `mapstructure:"allowed"`
-	Autostart bool     `mapstructure:"autostart"`
+	Port            int      `mapstructure:"port"`
+	Backend         string   `mapstructure:"backend"`
+	Default         string   `mapstructure:"default"`
+	Allowed         []string `mapstructure:"allowed"`
+	Autostart       bool     `mapstructure:"autostart"`
+	AllowedControls []string `mapstructure:"allowed_controls"`
 }
 
 // ProxiesConfig holds all proxies and the global bind setting.
@@ -47,12 +48,18 @@ type ProxiesConfig struct {
 	Proxies map[string]Proxy `mapstructure:",remain"`
 }
 
+// ControlLogin holds a username/token pair for controlling access to proxies.
+type ControlLogin struct {
+	Token string `mapstructure:"token"`
+}
+
 // ControlConfig defines how geistctl communicates with the daemon.
 type ControlConfig struct {
-	Mode   string       `mapstructure:"mode"`   // "unix" or "tcp"
-	Socket string       `mapstructure:"socket"` // path to unix socket
-	Listen string       `mapstructure:"listen"` // only used if mode == "tcp"
-	Auth   AuthSettings `mapstructure:"auth"`
+	Mode   string                  `mapstructure:"mode"`   // "unix" or "tcp"
+	Socket string                  `mapstructure:"socket"` // path to unix socket
+	Listen string                  `mapstructure:"listen"` // only used if mode == "tcp"
+	Auth   AuthSettings            `mapstructure:"auth"`
+	Logins map[string]ControlLogin `mapstructure:"logins"`
 }
 
 // AuthSettings allows optional authentication for remote control.

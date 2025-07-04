@@ -7,7 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 	"time"
+
+	"github.com/mfulz/portgeist/internal/controlcli"
 )
 
 const defaultSocket = "/tmp/portgeist.sock"
@@ -17,6 +20,40 @@ type ProxyStatus struct {
 	Backend string `json:"backend"`
 	Running bool   `json:"running"`
 	PID     int    `json:"pid"`
+}
+
+func GetProxyStatusWithAuth(name string) (*ProxyStatus, error) {
+	conf, err := controlcli.LoadClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := net.Dial("unix", conf.Socket)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	// Auth & Command
+	fmt.Fprintf(conn, "auth:%s:%s\n", conf.User, conf.Token)
+	fmt.Fprintf(conn, "proxy status %s\n", name)
+
+	reader := bufio.NewReader(conn)
+	raw, err := reader.ReadBytes('\n')
+	if err != nil {
+		return nil, err
+	}
+
+	if strings.HasPrefix(string(raw), "error:") {
+		return nil, fmt.Errorf(strings.TrimSpace(string(raw)))
+	}
+
+	var status ProxyStatus
+	if err := json.Unmarshal(raw, &status); err != nil {
+		return nil, fmt.Errorf("invalid response: %w", err)
+	}
+
+	return &status, nil
 }
 
 func GetProxyStatus(name string) (*ProxyStatus, error) {
@@ -85,4 +122,24 @@ func SendCommand(cmd string) error {
 
 	_, err = fmt.Fprintln(conn, cmd)
 	return err
+}
+
+func SendCommandWithAuth(cmd string) error {
+	conf, err := controlcli.LoadClientConfig()
+	if err != nil {
+		return err
+	}
+
+	conn, err := net.Dial("unix", conf.Socket)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	// Auth line
+	fmt.Fprintf(conn, "auth:%s:%s\n", conf.User, conf.Token)
+	// Command
+	fmt.Fprintf(conn, "%s\n", cmd)
+
+	return nil
 }

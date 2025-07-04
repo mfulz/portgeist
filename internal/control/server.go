@@ -51,14 +51,54 @@ func handleConn(conn net.Conn, cfg *config.Config) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
 
+	authLine, err := reader.ReadString('\n')
+	if err != nil {
+		log.Printf("[control] Failed to read auth line: %v", err)
+		return
+	}
+	authLine = strings.TrimSpace(authLine)
+
+	var authedUser string
+	skipAuthChecks := false
+
+	if cfg.Control.Auth.Enabled {
+		if !strings.HasPrefix(authLine, "auth:") {
+			conn.Write([]byte("error: authentication required\n"))
+			return
+		}
+
+		parts := strings.SplitN(strings.TrimPrefix(authLine, "auth:"), ":", 2)
+		if len(parts) != 2 {
+			conn.Write([]byte("error: malformed auth\n"))
+			return
+		}
+
+		user, token := parts[0], parts[1]
+		entry, ok := cfg.Control.Logins[user]
+		if !ok || entry.Token != token {
+			conn.Write([]byte("error: invalid credentials\n"))
+			return
+		}
+
+		log.Printf("[control] Auth success for user '%s'", user)
+		authedUser = user
+
+	} else {
+		// Auth disabled → accept any auth line
+		authedUser = "unauthenticated"
+		skipAuthChecks = true
+	}
+
+	// Read actual command
 	line, err := reader.ReadString('\n')
 	if err != nil {
-		log.Printf("[control] Failed to read: %v", err)
+		log.Printf("[control] Failed to read command: %v", err)
 		return
 	}
 
 	cmd := strings.TrimSpace(line)
 
+	// Command handlers
 	if cmd == "proxy list" {
 		names := make([]string, 0, len(cfg.Proxies.Proxies))
 		for name := range cfg.Proxies.Proxies {
@@ -70,40 +110,29 @@ func handleConn(conn net.Conn, cfg *config.Config) {
 
 	} else if strings.HasPrefix(cmd, "proxy start ") {
 		name := strings.TrimPrefix(cmd, "proxy start ")
-		if proxyCfg, ok := cfg.Proxies.Proxies[name]; ok {
-			err := proxy.StartProxy(name, proxyCfg, cfg)
-			if err != nil {
-				conn.Write([]byte(fmt.Sprintf("error: %v\n", err)))
-			} else {
-				conn.Write([]byte("ok\n"))
-			}
-		} else {
-			conn.Write([]byte("error: unknown proxy\n"))
-		}
+		handleProxyCmd(conn, name, authedUser, cfg, skipAuthChecks, proxy.StartProxy)
+
 	} else if strings.HasPrefix(cmd, "proxy stop ") {
 		name := strings.TrimPrefix(cmd, "proxy stop ")
-		if proxyCfg, ok := cfg.Proxies.Proxies[name]; ok {
-			backendName := proxyCfg.Backend
-			if backendName == "" {
-				backendName = "ssh_exec"
+		handleProxyCmd(conn, name, authedUser, cfg, skipAuthChecks, func(n string, p config.Proxy, c *config.Config) error {
+			bname := p.Backend
+			if bname == "" {
+				bname = "ssh_exec"
 			}
-			backend, err := interfaces.GetBackend(backendName)
+			backend, err := interfaces.GetBackend(bname)
 			if err != nil {
-				conn.Write([]byte(fmt.Sprintf("error: unknown backend for '%s'\n", name)))
-				return
+				return err
 			}
-			err = backend.Stop(name)
-			if err != nil {
-				conn.Write([]byte(fmt.Sprintf("error: %v\n", err)))
-			} else {
-				conn.Write([]byte("ok\n"))
-			}
-		} else {
-			conn.Write([]byte("error: unknown proxy\n"))
-		}
+			return backend.Stop(n)
+		})
+
 	} else if strings.HasPrefix(cmd, "proxy status ") {
 		name := strings.TrimPrefix(cmd, "proxy status ")
 		if proxyCfg, ok := cfg.Proxies.Proxies[name]; ok {
+			if !isControlAllowed(proxyCfg, authedUser, skipAuthChecks) {
+				conn.Write([]byte("error: access denied\n"))
+				return
+			}
 			backendName := proxyCfg.Backend
 			if backendName == "" {
 				backendName = "ssh_exec"
@@ -130,7 +159,37 @@ func handleConn(conn net.Conn, cfg *config.Config) {
 			}
 		}
 		conn.Write([]byte("null\n"))
+
 	} else {
 		conn.Write([]byte("unknown command\n"))
+	}
+}
+
+func isControlAllowed(proxyCfg config.Proxy, user string, skip bool) bool {
+	if skip {
+		return true
+	}
+	for _, u := range proxyCfg.AllowedControls {
+		if u == user {
+			return true
+		}
+	}
+	return false
+}
+
+func handleProxyCmd(conn net.Conn, name, user string, cfg *config.Config, skip bool, fn func(string, config.Proxy, *config.Config) error) {
+	proxyCfg, ok := cfg.Proxies.Proxies[name]
+	if !ok {
+		conn.Write([]byte("error: unknown proxy\n"))
+		return
+	}
+	if !isControlAllowed(proxyCfg, user, skip) {
+		conn.Write([]byte("error: access denied\n"))
+		return
+	}
+	if err := fn(name, proxyCfg, cfg); err != nil {
+		conn.Write([]byte(fmt.Sprintf("error: %v\n", err)))
+	} else {
+		conn.Write([]byte("ok\n"))
 	}
 }
