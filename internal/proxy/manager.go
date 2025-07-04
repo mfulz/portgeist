@@ -12,6 +12,8 @@ import (
 	"github.com/mfulz/portgeist/protocol"
 )
 
+var activeHostByProxy = make(map[string]string)
+
 // StartAutostartProxies starts all proxies marked as autostart=true
 // from the provided configuration. It resolves the default host and
 // initiates the connection if available.
@@ -75,6 +77,7 @@ func StartProxy(name string, p config.Proxy, cfg *config.Config) error {
 		tryProxy.Default = hostName
 
 		if err := backend.Start(name, tryProxy, cfg); err == nil {
+			activeHostByProxy[name] = hostName
 			log.Printf("[proxy] Proxy '%s' successfully started via '%s'", name, hostName)
 			return nil
 		} else {
@@ -126,10 +129,11 @@ func GetProxyStatus(name string, proxyCfg config.Proxy, cfg *config.Config) (*pr
 	pid, running := backend.Status(name)
 
 	return &protocol.StatusResponse{
-		Name:    name,
-		Backend: backendName,
-		Running: running,
-		PID:     pid,
+		Name:       name,
+		Backend:    backendName,
+		Running:    running,
+		PID:        pid,
+		ActiveHost: activeHostByProxy[name],
 	}, nil
 }
 
@@ -148,13 +152,14 @@ func GetProxyInfo(name string, p config.Proxy, cfg *config.Config) (*protocol.In
 	}
 	pid, running := be.Status(name)
 	return &protocol.InfoResponse{
-		Name:    name,
-		Backend: backend,
-		Host:    hostCfg.Address,
-		Port:    hostCfg.Port,
-		Login:   hostCfg.Login,
-		Running: running,
-		PID:     pid,
-		Allowed: p.AllowedControls,
+		Name:       name,
+		Backend:    backend,
+		Host:       hostCfg.Address,
+		Port:       hostCfg.Port,
+		Login:      hostCfg.Login,
+		Running:    running,
+		PID:        pid,
+		Allowed:    p.AllowedControls,
+		ActiveHost: activeHostByProxy[name],
 	}, nil
 }

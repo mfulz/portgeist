@@ -4,7 +4,9 @@ package control
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -85,6 +87,10 @@ func handleConn(conn net.Conn, inst config.ControlInstance, cfg *config.Config) 
 	for {
 		var req protocol.Request
 		if err := decoder.Decode(&req); err != nil {
+			if errors.Is(err, io.EOF) {
+				log.Printf("[control:%s] Client closed connection early", inst.Name)
+				return
+			}
 			log.Printf("[control:%s] Failed to decode request: %v", inst.Name, err)
 			return
 		}
@@ -104,11 +110,6 @@ func handleConn(conn net.Conn, inst config.ControlInstance, cfg *config.Config) 
 		}
 		req.Auth.User = user
 		resp := dispatcher.Dispatch(&req)
-		if err := encoder.Encode(resp); err != nil {
-			log.Printf("[control:%s] Failed to send response: %v", inst.Name, err)
-			return
-		}
-
 		if err := encoder.Encode(resp); err != nil {
 			log.Printf("[control:%s] Failed to send response: %v", inst.Name, err)
 			return

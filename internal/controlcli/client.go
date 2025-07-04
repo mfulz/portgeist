@@ -44,7 +44,9 @@ func SendCommandWithAuth(cfg *CTLConfig, daemonName, userName, command string, d
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to daemon '%s': %w", daemonName, err)
 	}
-	defer conn.Close()
+
+	// Achtung: Close erst NACH erfolgreichem Connect & Encode setzen
+	// defer conn.Close()
 
 	enc := json.NewEncoder(conn)
 	dec := json.NewDecoder(conn)
@@ -53,10 +55,13 @@ func SendCommandWithAuth(cfg *CTLConfig, daemonName, userName, command string, d
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
+	defer conn.Close()
+
 	var resp protocol.Response
 	if err := dec.Decode(&resp); err != nil {
 		return nil, fmt.Errorf("invalid response: %w", err)
 	}
+
 	return &resp, nil
 }
 

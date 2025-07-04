@@ -56,8 +56,8 @@ var proxyStatusCmd = &cobra.Command{
 		bytes, _ := json.Marshal(resp.Data)
 		_ = json.Unmarshal(bytes, &status)
 
-		fmt.Printf("Proxy: %s\nBackend: %s\nRunning: %v\nPID: %d\n",
-			status.Name, status.Backend, status.Running, status.PID)
+		fmt.Printf("Proxy: %s\nBackend: %s\nRunning: %v\nPID: %d\nActive Host: %s\n",
+			status.Name, status.Backend, status.Running, status.PID, status.ActiveHost)
 	},
 }
 
@@ -74,9 +74,9 @@ var proxyInfoCmd = &cobra.Command{
 		b, _ := json.Marshal(resp.Data)
 		_ = json.Unmarshal(b, &info)
 
-		fmt.Printf("Name:     %s\nBackend:  %s\nRunning:  %v\nPID:      %d\nHost:     %s:%d\nLogin:    %s\nAllowed:  %v\n",
+		fmt.Printf("Name:         %s\nBackend:      %s\nRunning:      %v\nPID:          %d\nHost:         %s:%d\nLogin:        %s\nAllowed:      %v\nActive Host:  %s\n",
 			info.Name, info.Backend, info.Running, info.PID,
-			info.Host, info.Port, info.Login, info.Allowed)
+			info.Host, info.Port, info.Login, info.Allowed, info.ActiveHost)
 	},
 }
 
