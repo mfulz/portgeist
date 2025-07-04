@@ -101,3 +101,13 @@ func (s *sshExecBackend) Stop(name string) error {
 	log.Printf("[ssh_exec] Proxy '%s' stopped successfully", name)
 	return nil
 }
+
+func (s *sshExecBackend) Status(name string) (int, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cmd, ok := s.procs[name]
+	if !ok || cmd.Process == nil {
+		return 0, false
+	}
+	return cmd.Process.Pid, true
+}

@@ -8,15 +8,22 @@ import (
 	"github.com/mfulz/portgeist/internal/config"
 )
 
-// ProxyBackend defines the interface for launching and stopping a proxy tunnel.
+// ProxyBackend defines the interface for launching, stopping,
+// and querying the state of a proxy tunnel.
 type ProxyBackend interface {
 	// Start attempts to launch a dynamic tunnel for the given proxy using
 	// the configuration context provided.
 	Start(name string, proxy config.Proxy, cfg *config.Config) error
 
 	// Stop attempts to cleanly shut down the proxy identified by its name.
-	// May be a no-op or return an error if the backend is state-less or unsupported.
 	Stop(name string) error
+
+	// Status returns the runtime status of a proxy by name.
+	// It returns the OS process ID (if running) and a boolean indicating whether
+	// the proxy is actively tracked and presumed alive.
+	//
+	// If the proxy is not running or unknown to the backend, PID will be 0 and running=false.
+	Status(name string) (pid int, running bool)
 }
 
 var registeredBackends = make(map[string]ProxyBackend)

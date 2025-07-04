@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/mfulz/portgeist/interfaces"
 	"github.com/mfulz/portgeist/internal/config"
 	"github.com/mfulz/portgeist/internal/proxy"
 )
@@ -79,7 +80,56 @@ func handleConn(conn net.Conn, cfg *config.Config) {
 		} else {
 			conn.Write([]byte("error: unknown proxy\n"))
 		}
-
+	} else if strings.HasPrefix(cmd, "proxy stop ") {
+		name := strings.TrimPrefix(cmd, "proxy stop ")
+		if proxyCfg, ok := cfg.Proxies.Proxies[name]; ok {
+			backendName := proxyCfg.Backend
+			if backendName == "" {
+				backendName = "ssh_exec"
+			}
+			backend, err := interfaces.GetBackend(backendName)
+			if err != nil {
+				conn.Write([]byte(fmt.Sprintf("error: unknown backend for '%s'\n", name)))
+				return
+			}
+			err = backend.Stop(name)
+			if err != nil {
+				conn.Write([]byte(fmt.Sprintf("error: %v\n", err)))
+			} else {
+				conn.Write([]byte("ok\n"))
+			}
+		} else {
+			conn.Write([]byte("error: unknown proxy\n"))
+		}
+	} else if strings.HasPrefix(cmd, "proxy status ") {
+		name := strings.TrimPrefix(cmd, "proxy status ")
+		if proxyCfg, ok := cfg.Proxies.Proxies[name]; ok {
+			backendName := proxyCfg.Backend
+			if backendName == "" {
+				backendName = "ssh_exec"
+			}
+			backend, err := interfaces.GetBackend(backendName)
+			if err != nil {
+				conn.Write([]byte("null\n"))
+				return
+			}
+			if statusable, ok := backend.(interface {
+				Status(name string) (int, bool)
+			}); ok {
+				pid, running := statusable.Status(name)
+				resp := map[string]interface{}{
+					"name":    name,
+					"backend": backendName,
+					"running": running,
+					"pid":     pid,
+				}
+				out, _ := json.Marshal(resp)
+				conn.Write(out)
+				conn.Write([]byte("\n"))
+				return
+			}
+		}
+		conn.Write([]byte("null\n"))
 	} else {
 		conn.Write([]byte("unknown command\n"))
 	}

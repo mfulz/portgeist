@@ -45,11 +45,50 @@ var proxyStartCmd = &cobra.Command{
 	},
 }
 
+var proxyStopCmd = &cobra.Command{
+	Use:   "stop",
+	Short: "Stop a proxy by name",
+	Run: func(cmd *cobra.Command, args []string) {
+		if proxyName == "" {
+			fmt.Println("Please provide a proxy name with -p")
+			return
+		}
+		err := control.SendCommand(fmt.Sprintf("proxy stop %s", proxyName))
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return
+		}
+		fmt.Printf("Requested stop of proxy: %s\n", proxyName)
+	},
+}
+
+var proxyStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show status of a proxy",
+	Run: func(cmd *cobra.Command, args []string) {
+		if proxyName == "" {
+			fmt.Println("Please provide a proxy name with -p")
+			return
+		}
+		status, err := control.GetProxyStatus(proxyName)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return
+		}
+		fmt.Printf("Proxy: %s\nBackend: %s\nRunning: %v\nPID: %d\n",
+			status.Name, status.Backend, status.Running, status.PID)
+	},
+}
+
 var proxyName string
 
 func init() {
 	proxyStartCmd.Flags().StringVarP(&proxyName, "proxy", "p", "", "Proxy name")
+	proxyStopCmd.Flags().StringVarP(&proxyName, "proxy", "p", "", "Proxy name")
+	proxyStatusCmd.Flags().StringVarP(&proxyName, "proxy", "p", "", "Proxy name")
 
 	ProxyCmd.AddCommand(proxyListCmd)
 	ProxyCmd.AddCommand(proxyStartCmd)
+	ProxyCmd.AddCommand(proxyStopCmd)
+	ProxyCmd.AddCommand(proxyStatusCmd)
 }

@@ -12,6 +12,39 @@ import (
 
 const defaultSocket = "/tmp/portgeist.sock"
 
+type ProxyStatus struct {
+	Name    string `json:"name"`
+	Backend string `json:"backend"`
+	Running bool   `json:"running"`
+	PID     int    `json:"pid"`
+}
+
+func GetProxyStatus(name string) (*ProxyStatus, error) {
+	conn, err := net.Dial("unix", defaultSocket)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	_, err = fmt.Fprintf(conn, "proxy status %s\n", name)
+	if err != nil {
+		return nil, err
+	}
+
+	reader := bufio.NewReader(conn)
+	raw, err := reader.ReadBytes('\n')
+	if err != nil {
+		return nil, err
+	}
+
+	var status ProxyStatus
+	if err := json.Unmarshal(raw, &status); err != nil {
+		return nil, fmt.Errorf("invalid response: %w", err)
+	}
+
+	return &status, nil
+}
+
 // ListProxies connects to the geistd daemon and requests the list of configured proxies.
 func ListProxies() ([]string, error) {
 	conn, err := net.DialTimeout("unix", defaultSocket, 2*time.Second)
