@@ -12,6 +12,7 @@ import (
 	"github.com/mfulz/portgeist/protocol"
 )
 
+// activeHostByProxy keeps track of the currently active host used by a proxy.
 var activeHostByProxy = make(map[string]string)
 
 // StartAutostartProxies starts all proxies marked as autostart=true
@@ -33,7 +34,6 @@ func StartAutostartProxies(cfg *config.Config) error {
 // StartProxy attempts to start a proxy via its defined backend,
 // first using the default host, then falling back to allowed hosts if needed.
 func StartProxy(name string, p config.Proxy, cfg *config.Config) error {
-	// Extract backend from default host
 	hostName := p.Default
 	if hostName == "" {
 		return fmt.Errorf("no default host set for proxy '%s'", name)
@@ -106,10 +106,13 @@ func StopProxy(name string, proxyCfg config.Proxy, cfg *config.Config) error {
 		return err
 	}
 
+	delete(activeHostByProxy, name)
+
 	return backend.Stop(name)
 }
 
-// GetProxyStatus returns runtime information about the given proxy.
+// GetProxyStatus returns runtime information about the given proxy,
+// including its current PID, backend, running status, and active host.
 func GetProxyStatus(name string, proxyCfg config.Proxy, cfg *config.Config) (*protocol.StatusResponse, error) {
 	hostCfg, ok := cfg.Hosts[proxyCfg.Default]
 	if !ok {
@@ -137,6 +140,8 @@ func GetProxyStatus(name string, proxyCfg config.Proxy, cfg *config.Config) (*pr
 	}, nil
 }
 
+// GetProxyInfo returns static and dynamic information about a proxy,
+// including its host, port, backend, credentials, allowed users and active host.
 func GetProxyInfo(name string, p config.Proxy, cfg *config.Config) (*protocol.InfoResponse, error) {
 	hostCfg, ok := cfg.Hosts[p.Default]
 	if !ok {
