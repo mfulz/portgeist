@@ -12,6 +12,7 @@ type ClientConfig struct {
 	User   string `mapstructure:"user"`
 	Token  string `mapstructure:"token"`
 	Socket string `mapstructure:"socket"`
+	TCP    string `mapstructure:"tcp"`
 }
 
 var cfg *ClientConfig

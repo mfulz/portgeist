@@ -44,6 +44,25 @@ func StartServer(cfg *config.Config) error {
 		}
 	}()
 
+	// Optional TCP listen
+	if cfg.Control.Listen != "" {
+		go func() {
+			tcpLn, err := net.Listen("tcp", cfg.Control.Listen)
+			if err != nil {
+				log.Fatalf("[control] TCP listen failed: %v", err)
+			}
+			log.Printf("[control] Listening on TCP: %s", cfg.Control.Listen)
+			for {
+				conn, err := tcpLn.Accept()
+				if err != nil {
+					log.Printf("[control] TCP accept error: %v", err)
+					continue
+				}
+				go handleConn(conn, cfg)
+			}
+		}()
+	}
+
 	return nil
 }
 

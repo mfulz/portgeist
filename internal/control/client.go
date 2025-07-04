@@ -1,21 +1,27 @@
-// Package control provides client-side communication logic to interact with the geistd daemon.
-// It sends commands via the configured Unix socket and parses the response.
+// Package control provides authenticated client access to the running geistd daemon.
+// It handles the communication over Unix or TCP sockets and offers high-level
+// functions to manage and inspect configured proxy definitions.
 package control
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"strings"
-	"time"
 
-	"github.com/mfulz/portgeist/internal/controlcli"
+	controlcli "github.com/mfulz/portgeist/internal/controlcli"
 )
 
-const defaultSocket = "/tmp/portgeist.sock"
+// ProxyStatus represents the runtime status of a proxy as reported by the daemon.
+type ProxyStatus struct {
+	Name    string `json:"name"`
+	Backend string `json:"backend"`
+	Running bool   `json:"running"`
+	PID     int    `json:"pid"`
+}
 
+// ProxyInfo represents the full configuration and runtime state of a proxy.
 type ProxyInfo struct {
 	Name         string   `json:"name"`
 	Port         int      `json:"port"`
@@ -28,20 +34,28 @@ type ProxyInfo struct {
 	AllowedUsers []string `json:"allowed_users"`
 }
 
-func GetProxyInfoWithAuth(name string) (*ProxyInfo, error) {
+// SendCommandWithAuth sends an authenticated command to the geistd daemon
+// and returns the raw byte response. It automatically handles authentication
+// and connection setup via Unix or TCP socket depending on the client config.
+func SendCommandWithAuth(command string) ([]byte, error) {
 	conf, err := controlcli.LoadClientConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := net.Dial("unix", conf.Socket)
+	var conn net.Conn
+	if conf.TCP != "" {
+		conn, err = net.Dial("tcp", conf.TCP)
+	} else {
+		conn, err = net.Dial("unix", conf.Socket)
+	}
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
 
 	fmt.Fprintf(conn, "auth:%s:%s\n", conf.User, conf.Token)
-	fmt.Fprintf(conn, "proxy info %s\n", name)
+	fmt.Fprintf(conn, "%s\n", command)
 
 	raw, err := io.ReadAll(conn)
 	if err != nil {
@@ -52,174 +66,49 @@ func GetProxyInfoWithAuth(name string) (*ProxyInfo, error) {
 		return nil, fmt.Errorf(strings.TrimSpace(string(raw)))
 	}
 
+	return raw, nil
+}
+
+// ListProxiesWithAuth returns all known proxy names as reported by the daemon.
+// Requires valid authentication and access to the configured control socket.
+func ListProxiesWithAuth() ([]string, error) {
+	raw, err := SendCommandWithAuth("proxy list")
+	if err != nil {
+		return nil, err
+	}
+	var proxies []string
+	if err := json.Unmarshal(raw, &proxies); err != nil {
+		return nil, fmt.Errorf("invalid response format: %w", err)
+	}
+	return proxies, nil
+}
+
+// GetProxyStatusWithAuth queries the daemon for the runtime state (PID, running, backend)
+// of a specific proxy identified by name. Returns an error if access is denied or the proxy
+// is unknown.
+func GetProxyStatusWithAuth(name string) (*ProxyStatus, error) {
+	raw, err := SendCommandWithAuth(fmt.Sprintf("proxy status %s", name))
+	if err != nil {
+		return nil, err
+	}
+	var status ProxyStatus
+	if err := json.Unmarshal(raw, &status); err != nil {
+		return nil, fmt.Errorf("invalid response: %w", err)
+	}
+	return &status, nil
+}
+
+// GetProxyInfoWithAuth retrieves the full proxy configuration and its current
+// runtime state from the daemon. This includes port, backend, allowed hosts/users,
+// autostart flag, and process information.
+func GetProxyInfoWithAuth(name string) (*ProxyInfo, error) {
+	raw, err := SendCommandWithAuth(fmt.Sprintf("proxy info %s", name))
+	if err != nil {
+		return nil, err
+	}
 	var info ProxyInfo
 	if err := json.Unmarshal(raw, &info); err != nil {
 		return nil, fmt.Errorf("invalid response: %w", err)
 	}
-
 	return &info, nil
-}
-
-type ProxyStatus struct {
-	Name    string `json:"name"`
-	Backend string `json:"backend"`
-	Running bool   `json:"running"`
-	PID     int    `json:"pid"`
-}
-
-func GetProxyStatusWithAuth(name string) (*ProxyStatus, error) {
-	conf, err := controlcli.LoadClientConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	conn, err := net.Dial("unix", conf.Socket)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-
-	// Auth & Command
-	fmt.Fprintf(conn, "auth:%s:%s\n", conf.User, conf.Token)
-	fmt.Fprintf(conn, "proxy status %s\n", name)
-
-	reader := bufio.NewReader(conn)
-	raw, err := reader.ReadBytes('\n')
-	if err != nil {
-		return nil, err
-	}
-
-	if strings.HasPrefix(string(raw), "error:") {
-		return nil, fmt.Errorf(strings.TrimSpace(string(raw)))
-	}
-
-	var status ProxyStatus
-	if err := json.Unmarshal(raw, &status); err != nil {
-		return nil, fmt.Errorf("invalid response: %w", err)
-	}
-
-	return &status, nil
-}
-
-func GetProxyStatus(name string) (*ProxyStatus, error) {
-	conn, err := net.Dial("unix", defaultSocket)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-
-	_, err = fmt.Fprintf(conn, "proxy status %s\n", name)
-	if err != nil {
-		return nil, err
-	}
-
-	reader := bufio.NewReader(conn)
-	raw, err := reader.ReadBytes('\n')
-	if err != nil {
-		return nil, err
-	}
-
-	var status ProxyStatus
-	if err := json.Unmarshal(raw, &status); err != nil {
-		return nil, fmt.Errorf("invalid response: %w", err)
-	}
-
-	return &status, nil
-}
-
-func ListProxiesWithAuth() ([]string, error) {
-	conf, err := controlcli.LoadClientConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	conn, err := net.Dial("unix", conf.Socket)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-
-	// Auth & Command
-	fmt.Fprintf(conn, "auth:%s:%s\n", conf.User, conf.Token)
-	fmt.Fprintf(conn, "proxy list\n")
-
-	reader := bufio.NewReader(conn)
-	raw, err := reader.ReadBytes('\n')
-	if err != nil {
-		return nil, err
-	}
-
-	// Check for daemon-side error before parsing
-	if strings.HasPrefix(string(raw), "error:") {
-		return nil, fmt.Errorf(strings.TrimSpace(string(raw)))
-	}
-
-	var proxies []string
-	if err := json.Unmarshal(raw, &proxies); err != nil {
-		return nil, fmt.Errorf("invalid response format: %w", err)
-	}
-
-	return proxies, nil
-}
-
-// ListProxies connects to the geistd daemon and requests the list of configured proxies.
-func ListProxies() ([]string, error) {
-	conn, err := net.DialTimeout("unix", defaultSocket, 2*time.Second)
-	if err != nil {
-		return nil, fmt.Errorf("could not connect to daemon socket: %w", err)
-	}
-	defer conn.Close()
-
-	// Send command
-	_, err = fmt.Fprintln(conn, "proxy list")
-	if err != nil {
-		return nil, fmt.Errorf("failed to send command: %w", err)
-	}
-
-	// Read response
-	reader := bufio.NewReader(conn)
-	raw, err := reader.ReadBytes('\n')
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	// Expecting JSON array of strings
-	var proxies []string
-	if err := json.Unmarshal(raw, &proxies); err != nil {
-		return nil, fmt.Errorf("invalid response format: %w", err)
-	}
-
-	return proxies, nil
-}
-
-// SendCommand sends a raw command over the control socket and returns any error.
-func SendCommand(cmd string) error {
-	conn, err := net.Dial("unix", defaultSocket)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
-	_, err = fmt.Fprintln(conn, cmd)
-	return err
-}
-
-func SendCommandWithAuth(cmd string) error {
-	conf, err := controlcli.LoadClientConfig()
-	if err != nil {
-		return err
-	}
-
-	conn, err := net.Dial("unix", conf.Socket)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
-	// Auth line
-	fmt.Fprintf(conn, "auth:%s:%s\n", conf.User, conf.Token)
-	// Command
-	fmt.Fprintf(conn, "%s\n", cmd)
-
-	return nil
 }
