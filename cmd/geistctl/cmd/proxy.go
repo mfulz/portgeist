@@ -8,6 +8,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	proxyName string
+	hostName  string
+)
+
 var ProxyCmd = &cobra.Command{
 	Use:   "proxy",
 	Short: "Manage and inspect proxies",
@@ -98,17 +103,35 @@ var proxyStatusCmd = &cobra.Command{
 	},
 }
 
-var proxyName string
+var proxySetActiveCmd = &cobra.Command{
+	Use:   "setactive",
+	Short: "Set the active host for a proxy",
+	Run: func(cmd *cobra.Command, args []string) {
+		if proxyName == "" || hostName == "" {
+			fmt.Println("Please provide proxy name (-p) and host (-h)")
+			return
+		}
+		_, err := control.SendCommandWithAuth(fmt.Sprintf("proxy setactive %s %s", proxyName, hostName))
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return
+		}
+		fmt.Printf("Active host for '%s' set to '%s'\n", proxyName, hostName)
+	},
+}
 
 func init() {
 	proxyInfoCmd.Flags().StringVarP(&proxyName, "proxy", "p", "", "Proxy name")
 	proxyStartCmd.Flags().StringVarP(&proxyName, "proxy", "p", "", "Proxy name")
 	proxyStopCmd.Flags().StringVarP(&proxyName, "proxy", "p", "", "Proxy name")
 	proxyStatusCmd.Flags().StringVarP(&proxyName, "proxy", "p", "", "Proxy name")
+	proxySetActiveCmd.Flags().StringVarP(&proxyName, "proxy", "p", "", "Proxy name")
+	proxySetActiveCmd.Flags().StringVarP(&hostName, "host", "n", "", "Host name")
 
 	ProxyCmd.AddCommand(proxyInfoCmd)
 	ProxyCmd.AddCommand(proxyListCmd)
 	ProxyCmd.AddCommand(proxyStartCmd)
 	ProxyCmd.AddCommand(proxyStopCmd)
 	ProxyCmd.AddCommand(proxyStatusCmd)
+	ProxyCmd.AddCommand(proxySetActiveCmd)
 }

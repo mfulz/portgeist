@@ -144,7 +144,6 @@ func handleConn(conn net.Conn, cfg *config.Config) {
 			}
 			return backend.Stop(n)
 		})
-
 	} else if strings.HasPrefix(cmd, "proxy status ") {
 		name := strings.TrimPrefix(cmd, "proxy status ")
 		if proxyCfg, ok := cfg.Proxies.Proxies[name]; ok {
@@ -223,6 +222,57 @@ func handleConn(conn net.Conn, cfg *config.Config) {
 			return
 		}
 		conn.Write([]byte("error: unknown proxy\n"))
+	} else if strings.HasPrefix(cmd, "proxy setactive ") {
+		parts := strings.Split(cmd, " ")
+		if len(parts) != 4 {
+			conn.Write([]byte("error: invalid setactive syntax\n"))
+			return
+		}
+		name, target := parts[2], parts[3]
+		proxyCfg, ok := cfg.Proxies.Proxies[name]
+		if !ok {
+			conn.Write([]byte("error: proxy not found\n"))
+			return
+		}
+		if !isControlAllowed(proxyCfg, authedUser, skipAuthChecks) {
+			conn.Write([]byte("error: access denied\n"))
+			return
+		}
+		found := false
+		for _, h := range proxyCfg.Allowed {
+			if h == target {
+				found = true
+				break
+			}
+		}
+		if !found {
+			conn.Write([]byte("error: host not allowed\n"))
+			return
+		}
+		// Stop and restart with new default
+		backendName := proxyCfg.Backend
+		if backendName == "" {
+			backendName = "ssh_exec"
+		}
+		backend, err := interfaces.GetBackend(backendName)
+		if err != nil {
+			conn.Write([]byte("error: backend error\n"))
+			return
+		}
+		err = backend.Stop(name)
+		if err != nil {
+			conn.Write([]byte("error: stop failed\n"))
+			return
+		}
+
+		proxyCfg.Default = target
+		cfg.Proxies.Proxies[name] = proxyCfg
+		err = proxy.StartProxy(name, proxyCfg, cfg)
+		if err != nil {
+			conn.Write([]byte(fmt.Sprintf("error: start failed: %v\n", err)))
+			return
+		}
+		conn.Write([]byte("ok\n"))
 	} else {
 		conn.Write([]byte("unknown command\n"))
 	}
