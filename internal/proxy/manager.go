@@ -84,3 +84,23 @@ func StartProxy(name string, p config.Proxy, cfg *config.Config) error {
 
 	return fmt.Errorf("all attempts failed for proxy '%s': %v", name, lastErr)
 }
+
+// StopProxy stops a running proxy by name using the configured backend.
+func StopProxy(name string, proxyCfg config.Proxy, cfg *config.Config) error {
+	hostCfg, ok := cfg.Hosts[proxyCfg.Default]
+	if !ok {
+		return fmt.Errorf("host '%s' not found", proxyCfg.Default)
+	}
+
+	backendName := hostCfg.Backend
+	if backendName == "" {
+		backendName = "ssh_exec"
+	}
+
+	backend, err := interfaces.GetBackend(backendName)
+	if err != nil {
+		return err
+	}
+
+	return backend.Stop(name)
+}

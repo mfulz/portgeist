@@ -80,24 +80,35 @@ var proxyListCmd = &cobra.Command{
 	},
 }
 
-var proxyStartCmdOld = &cobra.Command{
-	Use:   "start",
-	Short: "Start a proxy by name",
+var proxyStopCmd = &cobra.Command{
+	Use:   "stop",
+	Short: "Stop a proxy by name",
 	Run: func(cmd *cobra.Command, args []string) {
 		if proxyName == "" {
 			fmt.Println("Please provide a proxy name with -p")
 			return
 		}
-		_, err := control.SendCommandWithAuth(fmt.Sprintf("proxy start %s", proxyName))
+
+		req := protocol.Request{
+			Type: protocol.CmdProxyStop,
+			Data: protocol.StopRequest{Name: proxyName},
+		}
+
+		resp, err := control.SendStructuredRequest(req)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return
 		}
-		fmt.Printf("Requested start of proxy: %s\n", proxyName)
+		if resp.Status != "ok" {
+			fmt.Printf("Error: %s\n", resp.Error)
+			return
+		}
+
+		fmt.Printf("Requested stop of proxy: %s\n", proxyName)
 	},
 }
 
-var proxyStopCmd = &cobra.Command{
+var proxyStopCmdOld = &cobra.Command{
 	Use:   "stop",
 	Short: "Stop a proxy by name",
 	Run: func(cmd *cobra.Command, args []string) {
