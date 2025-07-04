@@ -16,16 +16,16 @@ const (
 
 // Request represents a message sent from a client to the daemon.
 type Request struct {
-	Type string      `json:"type"`          // e.g. "proxy.start", "proxy.status"
-	Auth *Auth       `json:"auth,omitempty"`// Optional auth block
-	Data interface{} `json:"data,omitempty"`// Optional payload
+	Type string      `json:"type"`           // e.g. "proxy.start", "proxy.status"
+	Auth *Auth       `json:"auth,omitempty"` // Optional auth block
+	Data interface{} `json:"data,omitempty"` // Optional payload
 }
 
 // Response represents a message sent from the daemon to a client.
 type Response struct {
-	Status string      `json:"status"`           // "ok" or "error"
-	Data   interface{} `json:"data,omitempty"`   // Optional result
-	Error  string      `json:"error,omitempty"`  // Optional error message
+	Status string      `json:"status"`          // "ok" or "error"
+	Data   interface{} `json:"data,omitempty"`  // Optional result
+	Error  string      `json:"error,omitempty"` // Optional error message
 }
 
 // Auth holds authentication information for a client.
@@ -62,4 +62,16 @@ type StatusResponse struct {
 	Backend string `json:"backend"`
 	Running bool   `json:"running"`
 	PID     int    `json:"pid"`
+}
+
+// InfoResponse combines proxy config and runtime status.
+type InfoResponse struct {
+	Name    string   `json:"name"`
+	Backend string   `json:"backend"`
+	Host    string   `json:"host"`
+	Port    int      `json:"port"`
+	Login   string   `json:"login"`
+	Running bool     `json:"running"`
+	PID     int      `json:"pid"`
+	Allowed []string `json:"allowed"`
 }

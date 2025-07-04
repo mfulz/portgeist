@@ -50,34 +50,35 @@ var proxyStartCmd = &cobra.Command{
 
 var proxyInfoCmd = &cobra.Command{
 	Use:   "info",
-	Short: "Show detailed info about a proxy",
+	Short: "Show combined config and runtime info of a proxy",
 	Run: func(cmd *cobra.Command, args []string) {
 		if proxyName == "" {
 			fmt.Println("Please provide a proxy name with -p")
 			return
 		}
-		info, err := control.GetProxyInfoWithAuth(proxyName)
-		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			return
-		}
-		fmt.Printf("Proxy: %s\nBackend: %s\nPort: %d\nDefault Host: %s\nRunning: %v (PID %d)\nAutostart: %v\nAllowed Hosts: %v\nAllowed Users: %v\n",
-			info.Name, info.Backend, info.Port, info.Default, info.Running, info.PID, info.Autostart, info.Allowed, info.AllowedUsers)
-	},
-}
 
-var proxyListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List all known proxies",
-	Run: func(cmd *cobra.Command, args []string) {
-		proxies, err := control.ListProxiesWithAuth()
+		req := protocol.Request{
+			Type: protocol.CmdProxyInfo,
+			Data: protocol.InfoRequest{Name: proxyName},
+		}
+
+		resp, err := control.SendStructuredRequest(req)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return
 		}
-		for _, p := range proxies {
-			fmt.Println("-", p)
+		if resp.Status != "ok" {
+			fmt.Printf("Error: %s\n", resp.Error)
+			return
 		}
+
+		var info protocol.InfoResponse
+		b, _ := json.Marshal(resp.Data)
+		_ = json.Unmarshal(b, &info)
+
+		fmt.Printf("Name:     %s\nBackend:  %s\nRunning:  %v\nPID:      %d\nHost:     %s:%d\nLogin:    %s\nAllowed:  %v\n",
+			info.Name, info.Backend, info.Running, info.PID,
+			info.Host, info.Port, info.Login, info.Allowed)
 	},
 }
 
@@ -142,21 +143,37 @@ var proxyStatusCmd = &cobra.Command{
 	},
 }
 
-var proxyStatusCmdOld = &cobra.Command{
-	Use:   "status",
-	Short: "Show status of a proxy",
+var proxyListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List available proxies for the current user",
 	Run: func(cmd *cobra.Command, args []string) {
-		if proxyName == "" {
-			fmt.Println("Please provide a proxy name with -p")
-			return
+		req := protocol.Request{
+			Type: protocol.CmdProxyList,
 		}
-		status, err := control.GetProxyStatusWithAuth(proxyName)
+
+		resp, err := control.SendStructuredRequest(req)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return
 		}
-		fmt.Printf("Proxy: %s\nBackend: %s\nRunning: %v\nPID: %d\n",
-			status.Name, status.Backend, status.Running, status.PID)
+		if resp.Status != "ok" {
+			fmt.Printf("Error: %s\n", resp.Error)
+			return
+		}
+
+		var names []string
+		data, _ := json.Marshal(resp.Data)
+		_ = json.Unmarshal(data, &names)
+
+		if len(names) == 0 {
+			fmt.Println("No proxies available.")
+			return
+		}
+
+		fmt.Println("Available proxies:")
+		for _, name := range names {
+			fmt.Printf(" - %s\n", name)
+		}
 	},
 }
 

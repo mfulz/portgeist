@@ -112,6 +112,73 @@ func main() {
 		return &protocol.Response{Status: "ok", Data: status}
 	})
 
+	dispatcher.Register(protocol.CmdProxyList, func(req *protocol.Request) *protocol.Response {
+		user := "unauthenticated"
+		if req.Auth != nil {
+			user = req.Auth.User
+		}
+
+		var result []string
+		for name, proxyCfg := range cfg.Proxies.Proxies {
+			if control.IsControlAllowed(proxyCfg, user, !cfg.Control.Auth.Enabled) {
+				result = append(result, name)
+			}
+		}
+
+		return &protocol.Response{
+			Status: "ok",
+			Data:   result,
+		}
+	})
+
+	dispatcher.Register(protocol.CmdProxyInfo, func(req *protocol.Request) *protocol.Response {
+		var payload protocol.InfoRequest
+		data, _ := json.Marshal(req.Data)
+		if err := json.Unmarshal(data, &payload); err != nil {
+			return &protocol.Response{Status: "error", Error: "invalid info payload"}
+		}
+
+		proxyCfg, ok := cfg.Proxies.Proxies[payload.Name]
+		if !ok {
+			return &protocol.Response{Status: "error", Error: "unknown proxy"}
+		}
+
+		user := "unauthenticated"
+		if req.Auth != nil {
+			user = req.Auth.User
+		}
+		if !control.IsControlAllowed(proxyCfg, user, !cfg.Control.Auth.Enabled) {
+			return &protocol.Response{Status: "error", Error: "access denied"}
+		}
+
+		hostCfg, ok := cfg.Hosts[proxyCfg.Default]
+		if !ok {
+			return &protocol.Response{Status: "error", Error: "host not found"}
+		}
+		backend := hostCfg.Backend
+		if backend == "" {
+			backend = "ssh_exec"
+		}
+
+		be, err := interfaces.GetBackend(backend)
+		if err != nil {
+			return &protocol.Response{Status: "error", Error: err.Error()}
+		}
+		pid, running := be.Status(payload.Name)
+
+		resp := &protocol.InfoResponse{
+			Name:    payload.Name,
+			Backend: backend,
+			Host:    hostCfg.Address,
+			Port:    hostCfg.Port,
+			Login:   hostCfg.Login,
+			Running: running,
+			PID:     pid,
+			Allowed: proxyCfg.AllowedControls,
+		}
+		return &protocol.Response{Status: "ok", Data: resp}
+	})
+
 	// Übergib Dispatcher an den Server
 	control.SetDispatcher(dispatcher)
 
