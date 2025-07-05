@@ -10,52 +10,181 @@
 
 ## 🧠 Overview
 
-**PORTGEIST** is a modular proxy control system designed for hackers, developers, and network operators who need on-demand, remote-controlled SOCKS proxy endpoints over various backends like SSH, VPN tunnels, or future plugin support.
+**PORTGEIST** is a modular proxy control system designed for hackers, developers, and network operators who need on-demand, remote-controlled SOCKS proxy endpoints over various backends like SSH, VPN tunnels, or plugin modules.
 
-At its core, PORTGEIST is composed of two main components:
+At its core, PORTGEIST consists of two primary components:
 
-- `geistd`: The daemon that maintains active proxy endpoints and handles backend connectivity logic.
-- `geistctl`: A CLI interface to list, start, stop, and manage proxy definitions and remote hosts.
+- `geistd`: The daemon that maintains active proxy endpoints and manages backend logic and orchestration.
+- `geistctl`: A CLI interface to list, start, stop, inspect and control proxy endpoints locally or remotely.
 
 ---
 
 ## 🔩 Key Features
 
-- **Configurable backends**: Define login credentials, remote hosts, and proxy mappings in a clean YAML config.
-- **Dynamic fallback**: Each proxy can specify a default host and a fallback chain for failover.
-- **Daemon lifecycle**: `geistd` manages persistent SOCKS5 tunnels and can auto-start proxies on launch.
-- **Remote control**: `geistctl` allows local or remote command execution via future control interfaces.
-- **Extensible**: Backend abstraction allows future support for VPN, WireGuard, or even TOR.
+- **Multi-backend support** (currently: `ssh_exec`, extensible)
+- **Dynamic proxy fallback**: Automatic failover across defined hosts.
+- **Flexible config**:
+  - Proxies
+  - Hosts
+  - Daemon control interfaces (UNIX/TCP)
+  - Per-backend settings and overrides
+- **Per-proxy authentication**: Token-based control per user/proxy.
+- **Remote daemon support**: Connect and authenticate against multiple `geistd` instances.
+- **CLI flags for daemon override** (no need for config entries)
+- **Modular backend abstraction**
+- **Backend-specific runtime configuration** (e.g., additional SSH options)
+- **Full JSON protocol interface**
 
 ---
 
-## 📦 Example Use Case
+## 🧪 Example Usage
 
-Configure your browser (or curl, or system) to use:
-```
-SOCKS5 127.0.0.1:8888
-```
+Start and manage a proxy:
 
-Then control it:
 ```bash
-geistctl proxy -p proxy1 start
-geistctl proxy -p proxy1 setactive -h zurich
-geistctl proxy -p proxy1 status
+geistctl proxy start -p pp
+geistctl proxy setactive -p pp -o zurich
+geistctl proxy status -p pp
+geistctl proxy info -p pp
+```
+
+Using a specific remote daemon:
+
+```bash
+geistctl proxy info -p pp -d server1 -u admin
+```
+
+Or manually:
+
+```bash
+geistctl proxy info -p pp --socket /tmp/alt.sock --token mytoken
 ```
 
 ---
 
-## 📁 Project Layout
+## ⚙️ Configuration Overview
 
-```bash
+### 📂 `~/.portgeist/config.yaml`
+
+```yaml
+users:
+  admin:
+    token: "adminsecret"
+  noob:
+    token: "noobtoken"
+
+daemons:
+  local:
+    socket: /tmp/portgeist.sock
+  server1:
+    tcp: 127.0.0.1:7142
+```
+
+---
+
+### 📂 `config.yaml` (Daemon)
+
+```yaml
+control:
+  logins:
+    admin:
+      token: "adminsecret"
+    noob:
+      token: "noobtoken"
+  instances:
+    - name: local
+      mode: unix
+      listen: /tmp/portgeist.sock
+      enabled: true
+      auth:
+        enabled: false
+    - name: remote
+      mode: tcp
+      listen: 127.0.0.1:7142
+      enabled: true
+      auth:
+        enabled: true
+        allowed:
+          - admin
+          - noob
+
+proxies:
+  pp:
+    default: losangeles
+    autostart: false
+    allowed_controls: [admin]
+    fallback:
+      - duesseldorf
+      - zurich
+
+hosts:
+  losangeles:
+    address: losangeles.proxyhost.example.com
+    port: 22
+    login: pp
+    backend: ssh_exec
+  duesseldorf:
+    address: duesseldorf.proxyhost.example.com
+    port: 22
+    login: pp
+    backend: ssh_exec
+    config:
+      additional_flags:
+        - "-o"
+        - "StrictHostKeyChecking=no"
+
+backends:
+  ssh_exec:
+    additional_flags:
+      - "-o"
+      - "ExitOnForwardFailure=yes"
+```
+
+---
+
+## 🧩 Backend Configuration
+
+Each backend may expose its own configuration fields.
+For `ssh_exec`:
+
+```yaml
+backends:
+  ssh_exec:
+    additional_flags:
+      - "-o"
+      - "ExitOnForwardFailure=yes"
+```
+
+You can override backend config per host:
+
+```yaml
+hosts:
+  zurich:
+    address: ...
+    backend: ssh_exec
+    config:
+      additional_flags:
+        - "-o"
+        - "Compression=yes"
+```
+
+---
+
+## 📦 Project Layout
+
+```
 portgeist/
 ├── cmd/
-│   ├── geistd/
-│   └── geistctl/
+│   ├── geistd/      # Daemon entrypoint
+│   └── geistctl/    # CLI interface
 ├── internal/
-│   ├── config/
-│   ├── proxy/
-│   └── backend/
+│   ├── config/      # Config handling
+│   ├── backend/     # Backend implementations
+│   ├── proxy/       # Proxy logic
+│   └── control/     # Control interfaces (unix/tcp)
+├── interfaces/      # Backend interfaces
+├── protocol/        # Protocol definitions
+├── dispatch/        # Command dispatcher
 ├── assets/
 │   └── logo_portgeist.png
 └── README.md
@@ -63,13 +192,7 @@ portgeist/
 
 ---
 
-## 💡 Status
-
-🛠️ Under active development. Initial prototype targets SSH-based proxies, but backend is abstracted for broader tunneling logic in the future.
-
----
-
-## 🔮 Name Origin
+## 🧙 Name Origin
 
 > **Portgeist** – a mischievous little ghost that haunts your localhost ports and tunnels traffic from the shadows.
 
