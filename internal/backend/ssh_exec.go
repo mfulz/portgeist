@@ -15,14 +15,25 @@ import (
 )
 
 type sshExecBackend struct {
-	mu    sync.Mutex
-	procs map[string]*exec.Cmd
+	mu       sync.Mutex
+	procs    map[string]*exec.Cmd
+	settings map[string]map[string]any
 }
 
 func init() {
 	interfaces.RegisterBackend("ssh_exec", &sshExecBackend{
-		procs: make(map[string]*exec.Cmd),
+		procs:    make(map[string]*exec.Cmd),
+		settings: make(map[string]map[string]any),
 	})
+}
+
+// Configure implements the ProxyBackend interface.
+// It stores backend-specific configuration for a proxy by name.
+func (s *sshExecBackend) Configure(name string, cfg map[string]any) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.settings[name] = cfg
+	return nil
 }
 
 // Start launches an SSH-based SOCKS proxy using sshpass and the given config.
@@ -43,18 +54,50 @@ func (s *sshExecBackend) Start(name string, p config.Proxy, cfg *config.Config) 
 	localAddr := fmt.Sprintf("%s:%d", bind, p.Port)
 	remoteAddr := fmt.Sprintf("%s@%s", login.User, host.Address)
 
+	// Get config overrides
+	s.mu.Lock()
+	cfgMap := s.settings[name]
+	if cfgMap == nil {
+		cfgMap = make(map[string]any)
+	}
+	s.mu.Unlock()
+
+	// Apply optional overrides
+	key := func(opt string, fallback string) string {
+		if val, ok := cfgMap[opt]; ok {
+			return fmt.Sprintf("%v", val)
+		}
+		return fallback
+	}
+
+	connectTimeout := key("connect_timeout", "5")
+	sshBinary := key("ssh_binary", "ssh")
+	sshpassBinary := key("sshpass_binary", "sshpass")
+
 	log.Printf("[ssh_exec] Launching SOCKS proxy '%s' on %s via %s", name, localAddr, remoteAddr)
 
 	cmd := exec.Command(
-		"sshpass", "-p", login.Password,
-		"ssh",
+		sshpassBinary, "-p", login.Password,
+		sshBinary,
 		"-N",
 		"-oStrictHostKeyChecking=no",
 		"-oUserKnownHostsFile=/dev/null",
-		"-oConnectTimeout=5",
+		"-oConnectTimeout="+connectTimeout,
 		"-D", localAddr,
 		remoteAddr,
 	)
+
+	// Add additional flags if present
+	if rawFlags, ok := cfgMap["additional_flags"]; ok {
+		if list, ok := rawFlags.([]interface{}); ok {
+			for _, v := range list {
+				if str, ok := v.(string); ok {
+					fmt.Println(str)
+					cmd.Args = append(cmd.Args, str)
+				}
+			}
+		}
+	}
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
@@ -62,7 +105,6 @@ func (s *sshExecBackend) Start(name string, p config.Proxy, cfg *config.Config) 
 		return fmt.Errorf("ssh start failed: %w", err)
 	}
 
-	// Track and monitor the process
 	go func() {
 		_ = cmd.Wait()
 		log.Printf("[ssh_exec] Proxy '%s' exited", name)
@@ -89,7 +131,6 @@ func (s *sshExecBackend) Stop(name string) error {
 
 	log.Printf("[ssh_exec] Stopping proxy '%s' (PID %d)", name, cmd.Process.Pid)
 
-	// Kill the process group
 	if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM); err != nil {
 		return fmt.Errorf("failed to kill process for '%s': %w", name, err)
 	}
@@ -102,6 +143,7 @@ func (s *sshExecBackend) Stop(name string) error {
 	return nil
 }
 
+// Status returns PID and running state of a proxy.
 func (s *sshExecBackend) Status(name string) (int, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

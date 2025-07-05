@@ -24,6 +24,10 @@ type ProxyBackend interface {
 	//
 	// If the proxy is not running or unknown to the backend, PID will be 0 and running=false.
 	Status(name string) (pid int, running bool)
+
+	// Configure allows setting backend-specific configuration parameters.
+	// This is called before any Start/Stop/Status calls.
+	Configure(name string, config map[string]any) error
 }
 
 var registeredBackends = make(map[string]ProxyBackend)

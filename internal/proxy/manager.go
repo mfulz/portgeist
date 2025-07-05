@@ -12,6 +12,17 @@ import (
 	"github.com/mfulz/portgeist/protocol"
 )
 
+func mergeConfig(global, override map[string]any) map[string]any {
+	out := make(map[string]any)
+	for k, v := range global {
+		out[k] = v
+	}
+	for k, v := range override {
+		out[k] = v
+	}
+	return out
+}
+
 // activeHostByProxy keeps track of the currently active host used by a proxy.
 var activeHostByProxy = make(map[string]string)
 
@@ -33,15 +44,11 @@ func StartAutostartProxies(cfg *config.Config) error {
 
 // StartProxy attempts to start a proxy via its defined backend,
 // first using the default host, then falling back to allowed hosts if needed.
+// It also records the active host used for the proxy.
 func StartProxy(name string, p config.Proxy, cfg *config.Config) error {
-	hostName := p.Default
-	if hostName == "" {
-		return fmt.Errorf("no default host set for proxy '%s'", name)
-	}
-
-	hostCfg, ok := cfg.Hosts[hostName]
+	hostCfg, ok := cfg.Hosts[p.Default]
 	if !ok {
-		return fmt.Errorf("host '%s' not found in config", hostName)
+		return fmt.Errorf("host '%s' not found for proxy '%s'", p.Default, name)
 	}
 
 	backendName := hostCfg.Backend
@@ -51,42 +58,27 @@ func StartProxy(name string, p config.Proxy, cfg *config.Config) error {
 
 	backend, err := interfaces.GetBackend(backendName)
 	if err != nil {
-		return err
+		return fmt.Errorf("unknown backend '%s': %w", backendName, err)
 	}
 
-	// Build host order: Default first, then allowed without duplication
-	seen := map[string]bool{}
-	tryHosts := []string{}
+	// Resolve configuration override (global + host-specific)
+	var resolvedConfig map[string]any
+	globalCfg := cfg.Backends[backendName]
+	hostCfgOverride := hostCfg.Config
 
-	if p.Default != "" {
-		tryHosts = append(tryHosts, p.Default)
-		seen[p.Default] = true
-	}
-	for _, h := range p.Allowed {
-		if !seen[h] {
-			tryHosts = append(tryHosts, h)
-			seen[h] = true
-		}
+	if globalCfg != nil || hostCfgOverride != nil {
+		resolvedConfig = mergeConfig(globalCfg, hostCfgOverride)
 	}
 
-	var lastErr error
-	for _, hostName := range tryHosts {
-		log.Printf("[proxy] Trying host '%s' for proxy '%s'", hostName, name)
-
-		tryProxy := p
-		tryProxy.Default = hostName
-
-		if err := backend.Start(name, tryProxy, cfg); err == nil {
-			activeHostByProxy[name] = hostName
-			log.Printf("[proxy] Proxy '%s' successfully started via '%s'", name, hostName)
-			return nil
-		} else {
-			log.Printf("[proxy] Host '%s' failed: %v", hostName, err)
-			lastErr = err
-		}
+	// Apply backend configuration
+	if err := backend.Configure(name, resolvedConfig); err != nil {
+		return fmt.Errorf("backend configuration failed: %w", err)
 	}
 
-	return fmt.Errorf("all attempts failed for proxy '%s': %v", name, lastErr)
+	// ✅ Register the active host
+	activeHostByProxy[name] = p.Default
+
+	return backend.Start(name, p, cfg)
 }
 
 // StopProxy stops a running proxy by name using the configured backend.

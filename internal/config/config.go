@@ -13,10 +13,11 @@ import (
 
 // Config represents the full structure of the portgeist configuration file.
 type Config struct {
-	Logins  map[string]Login   `mapstructure:"logins"`
-	Hosts   map[string]Host    `mapstructure:"hosts"`
-	Proxies ProxiesConfig      `mapstructure:"proxies"`
-	Control ControlMultiConfig `mapstructure:"control"`
+	Logins   map[string]Login          `mapstructure:"logins"`
+	Hosts    map[string]Host           `mapstructure:"hosts"`
+	Proxies  ProxiesConfig             `mapstructure:"proxies"`
+	Control  ControlMultiConfig        `mapstructure:"control"`
+	Backends map[string]map[string]any `yaml:"backends"`
 }
 
 // Login holds SSH/VPN credential information.
@@ -27,10 +28,11 @@ type Login struct {
 
 // Host defines a remote endpoint to connect to.
 type Host struct {
-	Address string `mapstructure:"address"`
-	Port    int    `mapstructure:"port"`
-	Login   string `mapstructure:"login"`
-	Backend string `mapstructure:"backend"`
+	Address string         `mapstructure:"address"`
+	Port    int            `mapstructure:"port"`
+	Login   string         `mapstructure:"login"`
+	Backend string         `mapstructure:"backend"`
+	Config  map[string]any `yaml:"config,omitempty"`
 }
 
 // Proxy defines a single proxy endpoint configuration.
