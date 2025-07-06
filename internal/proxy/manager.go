@@ -12,6 +12,21 @@ import (
 	"github.com/mfulz/portgeist/protocol"
 )
 
+// activeHostByProxy keeps track of the currently active host used by a proxy.
+var activeHostByProxy = make(map[string]string)
+
+// activeProxies stores the backend-level live instances by proxy name.
+var activeProxies = make(map[string]interfaces.RunningInstance)
+
+// StopAll cleanly stops all active proxies using tracked instances.
+func StopAll() {
+	for name, inst := range activeProxies {
+		log.Printf("[proxy] Shutting down '%s'...", name)
+		inst.Stop()
+	}
+}
+
+// mergeConfig merges global and host-specific backend configuration values.
 func mergeConfig(global, override map[string]any) map[string]any {
 	out := make(map[string]any)
 	for k, v := range global {
@@ -23,12 +38,8 @@ func mergeConfig(global, override map[string]any) map[string]any {
 	return out
 }
 
-// activeHostByProxy keeps track of the currently active host used by a proxy.
-var activeHostByProxy = make(map[string]string)
-
 // StartAutostartProxies starts all proxies marked as autostart=true
-// from the provided configuration. It resolves the default host and
-// initiates the connection if available.
+// from the provided configuration.
 func StartAutostartProxies(cfg *config.Config) error {
 	for name, proxy := range cfg.Proxies.Proxies {
 		if proxy.Autostart {
@@ -43,8 +54,7 @@ func StartAutostartProxies(cfg *config.Config) error {
 }
 
 // StartProxy attempts to start a proxy via its defined backend,
-// first using the default host, then falling back to allowed hosts if needed.
-// It also records the active host used for the proxy.
+// using resolved backend config and storing active instance.
 func StartProxy(name string, p config.Proxy, cfg *config.Config) error {
 	hostCfg, ok := cfg.Hosts[p.Default]
 	if !ok {
@@ -61,27 +71,34 @@ func StartProxy(name string, p config.Proxy, cfg *config.Config) error {
 		return fmt.Errorf("unknown backend '%s': %w", backendName, err)
 	}
 
-	// Resolve configuration override (global + host-specific)
+	// Resolve configuration override
 	var resolvedConfig map[string]any
 	globalCfg := cfg.Backends[backendName]
 	hostCfgOverride := hostCfg.Config
-
 	if globalCfg != nil || hostCfgOverride != nil {
 		resolvedConfig = mergeConfig(globalCfg, hostCfgOverride)
 	}
 
-	// Apply backend configuration
 	if err := backend.Configure(name, resolvedConfig); err != nil {
 		return fmt.Errorf("backend configuration failed: %w", err)
 	}
 
-	// ✅ Register the active host
 	activeHostByProxy[name] = p.Default
 
-	return backend.Start(name, p, cfg)
+	err = backend.Start(name, p, cfg)
+	if err != nil {
+		return err
+	}
+
+	// Optionally track the running instance
+	if r, ok := backend.(interfaces.InstanceReportingBackend); ok {
+		activeProxies[name] = r.GetInstance(name)
+	}
+
+	return nil
 }
 
-// StopProxy stops a running proxy by name using the configured backend.
+// StopProxy stops a running proxy by name and clears tracked state.
 func StopProxy(name string, proxyCfg config.Proxy, cfg *config.Config) error {
 	hostCfg, ok := cfg.Hosts[proxyCfg.Default]
 	if !ok {
@@ -99,12 +116,12 @@ func StopProxy(name string, proxyCfg config.Proxy, cfg *config.Config) error {
 	}
 
 	delete(activeHostByProxy, name)
+	delete(activeProxies, name)
 
 	return backend.Stop(name)
 }
 
-// GetProxyStatus returns runtime information about the given proxy,
-// including its current PID, backend, running status, and active host.
+// GetProxyStatus returns runtime information about a proxy.
 func GetProxyStatus(name string, proxyCfg config.Proxy, cfg *config.Config) (*protocol.StatusResponse, error) {
 	hostCfg, ok := cfg.Hosts[proxyCfg.Default]
 	if !ok {
@@ -132,8 +149,7 @@ func GetProxyStatus(name string, proxyCfg config.Proxy, cfg *config.Config) (*pr
 	}, nil
 }
 
-// GetProxyInfo returns static and dynamic information about a proxy,
-// including its host, port, backend, credentials, allowed users and active host.
+// GetProxyInfo returns static and dynamic proxy metadata.
 func GetProxyInfo(name string, p config.Proxy, cfg *config.Config) (*protocol.InfoResponse, error) {
 	hostCfg, ok := cfg.Hosts[p.Default]
 	if !ok {

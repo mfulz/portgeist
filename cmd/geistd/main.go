@@ -5,6 +5,9 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/mfulz/portgeist/dispatch"
 	_ "github.com/mfulz/portgeist/internal/backend"
@@ -161,7 +164,20 @@ func main() {
 	}
 
 	log.Println("[geistd] Daemon is running. Waiting for control events...")
-	select {}
+	waitForShutdown()
+	// select {}
+}
+
+func waitForShutdown() {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	sig := <-sigChan
+	log.Printf("[geistd] Caught signal: %s. Shutting down...", sig)
+
+	proxy.StopAll()
+
+	os.Exit(0)
 }
 
 // decodePayload marshals a map into the target struct.

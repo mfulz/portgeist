@@ -30,6 +30,21 @@ type ProxyBackend interface {
 	Configure(name string, config map[string]any) error
 }
 
+// RunningInstance represents an actively running proxy instance.
+// It must be stoppable via a Stop() call.
+type RunningInstance interface {
+	// Stop terminates the proxy instance cleanly.
+	Stop()
+}
+
+// InstanceReportingBackend is an optional extension to ProxyBackend.
+// It allows the backend to report live instances for proxy management.
+type InstanceReportingBackend interface {
+	ProxyBackend
+	// GetInstance returns a running instance associated with the given name.
+	GetInstance(name string) RunningInstance
+}
+
 var registeredBackends = make(map[string]ProxyBackend)
 
 // RegisterBackend adds a new backend to the global registry under a unique name.

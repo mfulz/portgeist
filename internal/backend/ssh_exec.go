@@ -27,8 +27,19 @@ func init() {
 	})
 }
 
+// sshInstance wraps an *exec.Cmd for interface-level shutdown support.
+type sshInstance struct {
+	cmd *exec.Cmd
+}
+
+// Stop sends SIGTERM to the process associated with the proxy instance.
+func (s *sshInstance) Stop() {
+	if s.cmd != nil && s.cmd.Process != nil {
+		_ = s.cmd.Process.Signal(syscall.SIGTERM)
+	}
+}
+
 // Configure implements the ProxyBackend interface.
-// It stores backend-specific configuration for a proxy by name.
 func (s *sshExecBackend) Configure(name string, cfg map[string]any) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -37,7 +48,6 @@ func (s *sshExecBackend) Configure(name string, cfg map[string]any) error {
 }
 
 // Start launches an SSH-based SOCKS proxy using sshpass and the given config.
-// It starts the process in foreground and manages its lifecycle.
 func (s *sshExecBackend) Start(name string, p config.Proxy, cfg *config.Config) error {
 	hostName := p.Default
 	host, ok := cfg.Hosts[hostName]
@@ -54,7 +64,6 @@ func (s *sshExecBackend) Start(name string, p config.Proxy, cfg *config.Config) 
 	localAddr := fmt.Sprintf("%s:%d", bind, p.Port)
 	remoteAddr := fmt.Sprintf("%s@%s", login.User, host.Address)
 
-	// Get config overrides
 	s.mu.Lock()
 	cfgMap := s.settings[name]
 	if cfgMap == nil {
@@ -62,7 +71,6 @@ func (s *sshExecBackend) Start(name string, p config.Proxy, cfg *config.Config) 
 	}
 	s.mu.Unlock()
 
-	// Apply optional overrides
 	key := func(opt string, fallback string) string {
 		if val, ok := cfgMap[opt]; ok {
 			return fmt.Sprintf("%v", val)
@@ -87,7 +95,6 @@ func (s *sshExecBackend) Start(name string, p config.Proxy, cfg *config.Config) 
 		remoteAddr,
 	)
 
-	// Add additional flags if present
 	if rawFlags, ok := cfgMap["additional_flags"]; ok {
 		if list, ok := rawFlags.([]interface{}); ok {
 			for _, v := range list {
@@ -122,6 +129,7 @@ func (s *sshExecBackend) Start(name string, p config.Proxy, cfg *config.Config) 
 func (s *sshExecBackend) Stop(name string) error {
 	s.mu.Lock()
 	cmd, ok := s.procs[name]
+	delete(s.procs, name)
 	s.mu.Unlock()
 
 	if !ok {
@@ -134,10 +142,6 @@ func (s *sshExecBackend) Stop(name string) error {
 	if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM); err != nil {
 		return fmt.Errorf("failed to kill process for '%s': %w", name, err)
 	}
-
-	s.mu.Lock()
-	delete(s.procs, name)
-	s.mu.Unlock()
 
 	log.Printf("[ssh_exec] Proxy '%s' stopped successfully", name)
 	return nil
@@ -152,4 +156,16 @@ func (s *sshExecBackend) Status(name string) (int, bool) {
 		return 0, false
 	}
 	return cmd.Process.Pid, true
+}
+
+// GetInstance implements InstanceReportingBackend and returns a RunningInstance for a proxy.
+func (s *sshExecBackend) GetInstance(name string) interfaces.RunningInstance {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cmd, ok := s.procs[name]
+	if !ok {
+		return nil
+	}
+	return &sshInstance{cmd: cmd}
 }
