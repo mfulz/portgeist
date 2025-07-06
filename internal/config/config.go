@@ -5,9 +5,8 @@ package config
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 
+	"github.com/mfulz/portgeist/internal/configloader"
 	"github.com/spf13/viper"
 )
 
@@ -89,26 +88,21 @@ type AuthSettings struct {
 // It searches for a file named config.yaml in the current working directory
 // or common fallback paths, and unmarshals the content into a typed struct.
 func LoadConfig() (*Config, error) {
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-
-	// Add high-priority config path: ~/.portgeist
-	if home, err := os.UserHomeDir(); err == nil {
-		viper.AddConfigPath(filepath.Join(home, ".portgeist"))
+	path, err := configloader.ResolveConfigPath("geistd", "geistd.yaml")
+	if err != nil {
+		return nil, err
 	}
 
-	viper.AddConfigPath(".")
-	viper.AddConfigPath("./config")
-	viper.AddConfigPath("/etc/portgeist")
+	viper.SetConfigFile(path)
+	viper.SetConfigType("yaml")
 
 	if err := viper.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("error reading config file: %w", err)
+		return nil, fmt.Errorf("error loading config: %w", err)
 	}
 
 	var cfg Config
 	if err := viper.Unmarshal(&cfg); err != nil {
-		return nil, fmt.Errorf("unable to decode config into struct: %w", err)
+		return nil, fmt.Errorf("config unmarshal failed: %w", err)
 	}
-
 	return &cfg, nil
 }

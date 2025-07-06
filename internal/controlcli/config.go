@@ -5,8 +5,8 @@ package controlcli
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
+	"github.com/mfulz/portgeist/internal/configloader"
 	"gopkg.in/yaml.v3"
 )
 
@@ -27,17 +27,22 @@ type CTLConfig struct {
 	Daemons map[string]DaemonConfig `yaml:"daemons"`
 }
 
-// LoadCTLConfig loads ~/.portgeist/ctl_config.yaml or returns an error.
+// LoadCTLConfig loads configuration from ~/.portgeist or /etc/portgeist.
 func LoadCTLConfig() (*CTLConfig, error) {
-	cfgPath := filepath.Join(os.Getenv("HOME"), ".portgeistctl", "config.yaml")
+	cfgPath, err := configloader.ResolveConfigPath("geistctl", "config.yaml")
+	if err != nil {
+		return nil, err
+	}
+
 	data, err := os.ReadFile(cfgPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read config.yaml: %w", err)
+		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 
 	var config CTLConfig
 	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("failed to parse config.yaml: %w", err)
+		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
+
 	return &config, nil
 }
