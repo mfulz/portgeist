@@ -4,7 +4,6 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -35,7 +34,7 @@ func main() {
 			if err := proxy.StartProxy(name, p, cfg); err != nil {
 				logging.Log.Warnf("[proxy] Failed to start '%s': %v", name, err)
 			} else {
-				log.Printf("[proxy] Proxy '%s' started", name)
+				logging.Log.Infof("[proxy] Proxy '%s' started", name)
 			}
 		}
 	}
@@ -162,12 +161,12 @@ func main() {
 			control.SetDispatcher(dispatcher)
 
 			if err := control.StartServerInstance(inst, cfg); err != nil {
-				log.Printf("[control:%s] Error: %v", inst.Name, err)
+				logging.Log.Errorf("[control:%s] Error: %v", inst.Name, err)
 			}
 		}(inst)
 	}
 
-	log.Println("[geistd] Daemon is running. Waiting for control events...")
+	logging.Log.Infoln("[geistd] Daemon is running. Waiting for control events...")
 	waitForShutdown()
 	// select {}
 }
@@ -177,7 +176,7 @@ func waitForShutdown() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	sig := <-sigChan
-	log.Printf("[geistd] Caught signal: %s. Shutting down...", sig)
+	logging.Log.Infof("[geistd] Caught signal: %s. Shutting down...", sig)
 
 	proxy.StopAll()
 

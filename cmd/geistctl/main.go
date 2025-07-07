@@ -4,7 +4,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/mfulz/portgeist/cmd/geistctl/cmd"
@@ -21,15 +20,14 @@ var rootCmd = &cobra.Command{
 }
 
 func main() {
-	var err error
-	err = configcli.LoadConfig()
+	err := configcli.LoadConfig()
 	if err != nil {
 		logging.Log.Fatalf("[geistctl] Failed to load config: %v", err)
 		os.Exit(1)
 	}
 
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		logging.Log.Fatalln(err)
 		os.Exit(1)
 	}
 }
