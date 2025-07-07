@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/mfulz/portgeist/internal/controlcli"
+	"github.com/mfulz/portgeist/internal/logging"
 	"github.com/mfulz/portgeist/protocol"
 	"github.com/spf13/cobra"
 )
@@ -58,7 +59,7 @@ var proxyStatusCmd = &cobra.Command{
 		bytes, _ := json.Marshal(resp.Data)
 		_ = json.Unmarshal(bytes, &status)
 
-		fmt.Printf("Proxy: %s\nBackend: %s\nRunning: %v\nPID: %d\nActive Host: %s\n",
+		logging.Log.Infof("Proxy: %s\nBackend: %s\nRunning: %v\nPID: %d\nActive Host: %s\n",
 			status.Name, status.Backend, status.Running, status.PID, status.ActiveHost)
 	},
 }
@@ -96,7 +97,7 @@ var proxyListCmd = &cobra.Command{
 		_ = json.Unmarshal(data, &names)
 
 		if len(names) == 0 {
-			fmt.Println("No proxies available.")
+			logging.Log.Warnln("No proxies available.")
 			return
 		}
 
@@ -129,14 +130,9 @@ var proxySetActiveCmd = &cobra.Command{
 
 // execWithAuth sends a request to the configured or overridden daemon with optional authentication.
 func execWithAuth(cmdType string, payload interface{}, successMsg string) *protocol.Response {
-	cfg, err := controlcli.LoadCTLConfig()
-	if err != nil {
-		fmt.Printf("Error loading ctl config: %v\n", err)
-		return nil
-	}
-
+	var err error
 	if daemonName == "" {
-		daemonName = controlcli.GuessDefaultDaemon(cfg)
+		daemonName = controlcli.GuessDefaultDaemon(controlcli.CtlCfg)
 	}
 
 	var resp *protocol.Response
@@ -144,7 +140,7 @@ func execWithAuth(cmdType string, payload interface{}, successMsg string) *proto
 		// Use override (e.g. via --addr and --token)
 		resp, err = controlcli.SendDirectCommand(overrideAddr, overrideToken, controlUser, cmdType, payload)
 	} else {
-		resp, err = controlcli.SendCommandWithAuth(cfg, daemonName, controlUser, cmdType, payload)
+		resp, err = controlcli.SendCommandWithAuth(controlcli.CtlCfg, daemonName, controlUser, cmdType, payload)
 	}
 
 	if err != nil {

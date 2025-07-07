@@ -7,8 +7,11 @@ import (
 	"os"
 
 	"github.com/mfulz/portgeist/internal/configloader"
+	"github.com/mfulz/portgeist/internal/logging"
 	"gopkg.in/yaml.v3"
 )
+
+var CtlCfg *CTLConfig
 
 // UserConfig represents authentication info for a specific logical user.
 type UserConfig struct {
@@ -25,6 +28,7 @@ type DaemonConfig struct {
 type CTLConfig struct {
 	Users   map[string]UserConfig   `yaml:"users"`
 	Daemons map[string]DaemonConfig `yaml:"daemons"`
+	Logger  logging.Config          `yaml:"log"`
 }
 
 // LoadCTLConfig loads configuration from ~/.portgeist or /etc/portgeist.
