@@ -27,4 +27,5 @@ func main() {
 
 func init() {
 	rootCmd.AddCommand(cmd.ProxyCmd)
+	rootCmd.AddCommand(cmd.LaunchCmd)
 }
