@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/mfulz/portgeist/internal/configcli"
+	"github.com/mfulz/portgeist/internal/configloader"
 	"github.com/mfulz/portgeist/internal/controlcli"
 	"github.com/mfulz/portgeist/internal/logging"
 	"github.com/mfulz/portgeist/protocol"
@@ -131,8 +133,11 @@ var proxySetActiveCmd = &cobra.Command{
 // execWithAuth sends a request to the configured or overridden daemon with optional authentication.
 func execWithAuth(cmdType string, payload interface{}, successMsg string) *protocol.Response {
 	var err error
+
+	cfg := configloader.MustGetConfig[*configcli.Config]()
+
 	if daemonName == "" {
-		daemonName = controlcli.GuessDefaultDaemon(controlcli.CtlCfg)
+		daemonName = controlcli.GuessDefaultDaemon(cfg)
 	}
 
 	var resp *protocol.Response
@@ -140,7 +145,7 @@ func execWithAuth(cmdType string, payload interface{}, successMsg string) *proto
 		// Use override (e.g. via --addr and --token)
 		resp, err = controlcli.SendDirectCommand(overrideAddr, overrideToken, controlUser, cmdType, payload)
 	} else {
-		resp, err = controlcli.SendCommandWithAuth(controlcli.CtlCfg, daemonName, controlUser, cmdType, payload)
+		resp, err = controlcli.SendCommandWithAuth(cfg, daemonName, controlUser, cmdType, payload)
 	}
 
 	if err != nil {

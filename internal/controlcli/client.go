@@ -7,11 +7,12 @@ import (
 	"net"
 	"time"
 
+	"github.com/mfulz/portgeist/internal/configcli"
 	"github.com/mfulz/portgeist/protocol"
 )
 
 // SendCommandWithAuth connects to a selected daemon and sends a request with authentication.
-func SendCommandWithAuth(cfg *CTLConfig, daemonName, userName, command string, data interface{}) (*protocol.Response, error) {
+func SendCommandWithAuth(cfg *configcli.Config, daemonName, userName, command string, data interface{}) (*protocol.Response, error) {
 	daemon, ok := cfg.Daemons[daemonName]
 	if !ok {
 		return nil, fmt.Errorf("daemon '%s' not found", daemonName)
@@ -126,7 +127,7 @@ func SendDirectCommand(addr, token, user, command string, payload interface{}) (
 }
 
 // ListAvailableDaemons returns a list of configured daemon names.
-func ListAvailableDaemons(cfg *CTLConfig) []string {
+func ListAvailableDaemons(cfg *configcli.Config) []string {
 	var list []string
 	for name := range cfg.Daemons {
 		list = append(list, name)
@@ -135,7 +136,7 @@ func ListAvailableDaemons(cfg *CTLConfig) []string {
 }
 
 // GuessDefaultDaemon returns the first daemon name or empty string if none configured.
-func GuessDefaultDaemon(cfg *CTLConfig) string {
+func GuessDefaultDaemon(cfg *configcli.Config) string {
 	for name := range cfg.Daemons {
 		return name
 	}

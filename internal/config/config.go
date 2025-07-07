@@ -89,22 +89,25 @@ type AuthSettings struct {
 // LoadConfig loads the portgeist configuration from disk using Viper.
 // It searches for a file named config.yaml in the current working directory
 // or common fallback paths, and unmarshals the content into a typed struct.
-func LoadConfig() (*Config, error) {
+func LoadConfig() error {
 	path, err := configloader.ResolveConfigPath("geistd", "geistd.yaml")
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	viper.SetConfigFile(path)
 	viper.SetConfigType("yaml")
 
 	if err := viper.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("error loading config: %w", err)
+		return fmt.Errorf("error loading config: %w", err)
 	}
 
 	var cfg Config
 	if err := viper.Unmarshal(&cfg); err != nil {
-		return nil, fmt.Errorf("config unmarshal failed: %w", err)
+		return fmt.Errorf("config unmarshal failed: %w", err)
 	}
-	return &cfg, nil
+
+	configloader.RegisterConfig(&cfg)
+	configloader.RegisterConfig(&cfg.Logger)
+	return nil
 }

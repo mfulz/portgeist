@@ -5,6 +5,7 @@ package logging
 import (
 	"os"
 
+	"github.com/mfulz/portgeist/internal/configloader"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -12,23 +13,25 @@ import (
 
 // Config represents the logging configuration as defined in the global YAML config.
 type Config struct {
-	Level      string `yaml:"level" mapstructure:"level"`             // "debug", "info", "warn", "error"
-	ToStdout   bool   `yaml:"to_stdout" mapstructure:"to_stdout"`     // Enable output to stdout
-	ToStderr   bool   `yaml:"to_stderr" mapstructure:"to_stderr"`     // Enable output to stderr
-	ToFile     bool   `yaml:"to_file" mapstructure:"to_file"`         // Enable output to file
-	FilePath   string `yaml:"file" mapstructure:"file"`               // Log file path, e.g. /var/log/portgeist.log
-	MaxSizeMB  int    `yaml:"max_size" mapstructure:"max_size"`       // Max size before rotation (in MB)
-	MaxAge     int    `yaml:"max_age" mapstructure:"max_age"`         // Max age of logs (in days)
-	MaxBackups int    `yaml:"max_backups" mapstructure:"max_backups"` // Number of rotated backups to keep
-	Compress   bool   `yaml:"compress" mapstructure:"compress"`       // Gzip compress old log files
+	Level      string `mapstructure:"level"`       // "debug", "info", "warn", "error"
+	ToStdout   bool   `mapstructure:"to_stdout"`   // Enable output to stdout
+	ToStderr   bool   `mapstructure:"to_stderr"`   // Enable output to stderr
+	ToFile     bool   `mapstructure:"to_file"`     // Enable output to file
+	FilePath   string `mapstructure:"file"`        // Log file path, e.g. /var/log/portgeist.log
+	MaxSizeMB  int    `mapstructure:"max_size"`    // Max size before rotation (in MB)
+	MaxAge     int    `mapstructure:"max_age"`     // Max age of logs (in days)
+	MaxBackups int    `mapstructure:"max_backups"` // Number of rotated backups to keep
+	Compress   bool   `mapstructure:"compress"`    // Gzip compress old log files
 }
 
 // Log is the globally accessible sugared logger instance.
 var Log *zap.SugaredLogger
 
 // Init initializes the global logger based on the provided config.
-func Init(cfg Config) error {
+func Init() error {
 	var cores []zapcore.Core
+	cfg := configloader.MustGetConfig[*Config]()
+
 	encoderCfg := zap.NewProductionEncoderConfig()
 	encoderCfg.TimeKey = "timestamp"
 	encoderCfg.EncodeTime = zapcore.ISO8601TimeEncoder

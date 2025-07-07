@@ -12,6 +12,7 @@ import (
 	"github.com/mfulz/portgeist/dispatch"
 	_ "github.com/mfulz/portgeist/internal/backend"
 	"github.com/mfulz/portgeist/internal/config"
+	"github.com/mfulz/portgeist/internal/configloader"
 	"github.com/mfulz/portgeist/internal/control"
 	"github.com/mfulz/portgeist/internal/logging"
 	"github.com/mfulz/portgeist/internal/proxy"
@@ -19,13 +20,15 @@ import (
 )
 
 func main() {
-	cfg, err := config.LoadConfig()
+	err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("[geistd] Failed to load config: %v", err)
 	}
 	log.Println("[geistd] Configuration loaded successfully")
 
-	err = logging.Init(cfg.Logger)
+	cfg := configloader.MustGetConfig[*config.Config]()
+
+	err = logging.Init()
 	if err != nil {
 		log.Fatalf("[geistd] Failed to load log config: %v", err)
 	}
