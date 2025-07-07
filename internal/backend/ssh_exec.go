@@ -15,31 +15,40 @@ import (
 )
 
 type sshExecBackend struct {
-	mu       sync.Mutex
-	procs    map[string]*exec.Cmd
-	settings map[string]map[string]any
+	mu           sync.Mutex
+	procs        map[string]*exec.Cmd
+	settings     map[string]map[string]any
+	stopFlags    map[string]bool   // Tracks intentional shutdowns
+	exitCallback func(name string) // Optional exit notification callback
 }
 
 func init() {
 	interfaces.RegisterBackend("ssh_exec", &sshExecBackend{
-		procs:    make(map[string]*exec.Cmd),
-		settings: make(map[string]map[string]any),
+		procs:     make(map[string]*exec.Cmd),
+		settings:  make(map[string]map[string]any),
+		stopFlags: make(map[string]bool),
 	})
 }
 
-// sshInstance wraps an *exec.Cmd for interface-level shutdown support.
+// sshInstance wraps an *exec.Cmd to support graceful Stop via interface.
 type sshInstance struct {
 	cmd *exec.Cmd
 }
 
-// Stop sends SIGTERM to the process associated with the proxy instance.
+// Stop sends SIGTERM to the process associated with the instance.
 func (s *sshInstance) Stop() {
 	if s.cmd != nil && s.cmd.Process != nil {
 		_ = s.cmd.Process.Signal(syscall.SIGTERM)
 	}
 }
 
-// Configure implements the ProxyBackend interface.
+// SetExitHandler allows proxy manager to register a callback for process exit.
+// The callback is only invoked if the process exits unintentionally.
+func (s *sshExecBackend) SetExitHandler(cb func(name string)) {
+	s.exitCallback = cb
+}
+
+// Configure stores backend-specific config per proxy instance.
 func (s *sshExecBackend) Configure(name string, cfg map[string]any) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -47,7 +56,7 @@ func (s *sshExecBackend) Configure(name string, cfg map[string]any) error {
 	return nil
 }
 
-// Start launches an SSH-based SOCKS proxy using sshpass and the given config.
+// Start launches the SSH tunnel process for a proxy.
 func (s *sshExecBackend) Start(name string, p config.Proxy, cfg *config.Config) error {
 	hostName := p.Default
 	host, ok := cfg.Hosts[hostName]
@@ -99,7 +108,6 @@ func (s *sshExecBackend) Start(name string, p config.Proxy, cfg *config.Config) 
 		if list, ok := rawFlags.([]interface{}); ok {
 			for _, v := range list {
 				if str, ok := v.(string); ok {
-					fmt.Println(str)
 					cmd.Args = append(cmd.Args, str)
 				}
 			}
@@ -112,22 +120,34 @@ func (s *sshExecBackend) Start(name string, p config.Proxy, cfg *config.Config) 
 		return fmt.Errorf("ssh start failed: %w", err)
 	}
 
+	// Track and start wait loop
+	s.mu.Lock()
+	s.procs[name] = cmd
+	s.stopFlags[name] = false
+	s.mu.Unlock()
+
 	go func() {
 		_ = cmd.Wait()
 		log.Printf("[ssh_exec] Proxy '%s' exited", name)
-	}()
 
-	s.mu.Lock()
-	s.procs[name] = cmd
-	s.mu.Unlock()
+		s.mu.Lock()
+		intentional := s.stopFlags[name]
+		delete(s.stopFlags, name)
+		s.mu.Unlock()
+
+		if !intentional && s.exitCallback != nil {
+			s.exitCallback(name)
+		}
+	}()
 
 	log.Printf("[ssh_exec] Proxy '%s' started (PID %d)", name, cmd.Process.Pid)
 	return nil
 }
 
-// Stop attempts to terminate the SSH tunnel associated with the given proxy name.
+// Stop attempts to terminate the SSH tunnel for the given proxy.
 func (s *sshExecBackend) Stop(name string) error {
 	s.mu.Lock()
+	s.stopFlags[name] = true
 	cmd, ok := s.procs[name]
 	delete(s.procs, name)
 	s.mu.Unlock()
@@ -158,7 +178,7 @@ func (s *sshExecBackend) Status(name string) (int, bool) {
 	return cmd.Process.Pid, true
 }
 
-// GetInstance implements InstanceReportingBackend and returns a RunningInstance for a proxy.
+// GetInstance returns a RunningInstance for the proxy, if active.
 func (s *sshExecBackend) GetInstance(name string) interfaces.RunningInstance {
 	s.mu.Lock()
 	defer s.mu.Unlock()

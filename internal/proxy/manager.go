@@ -41,11 +41,10 @@ func mergeConfig(global, override map[string]any) map[string]any {
 // StartAutostartProxies starts all proxies marked as autostart=true
 // from the provided configuration.
 func StartAutostartProxies(cfg *config.Config) error {
-	for name, proxy := range cfg.Proxies.Proxies {
-		if proxy.Autostart {
+	for name, p := range cfg.Proxies.Proxies {
+		if p.Autostart {
 			log.Printf("[proxy] Autostart enabled for '%s'", name)
-			err := StartProxy(name, proxy, cfg)
-			if err != nil {
+			if err := StartProxy(name, p, cfg); err != nil {
 				log.Printf("[proxy] Failed to start '%s': %v", name, err)
 			}
 		}
@@ -60,86 +59,72 @@ func StartProxy(name string, p config.Proxy, cfg *config.Config) error {
 	if !ok {
 		return fmt.Errorf("host '%s' not found for proxy '%s'", p.Default, name)
 	}
-
 	backendName := hostCfg.Backend
 	if backendName == "" {
 		backendName = "ssh_exec"
 	}
-
 	backend, err := interfaces.GetBackend(backendName)
 	if err != nil {
 		return fmt.Errorf("unknown backend '%s': %w", backendName, err)
 	}
 
-	// Resolve configuration override
-	var resolvedConfig map[string]any
 	globalCfg := cfg.Backends[backendName]
-	hostCfgOverride := hostCfg.Config
-	if globalCfg != nil || hostCfgOverride != nil {
-		resolvedConfig = mergeConfig(globalCfg, hostCfgOverride)
+	resolved := mergeConfig(globalCfg, hostCfg.Config)
+
+	if err := backend.Configure(name, resolved); err != nil {
+		return fmt.Errorf("backend configure failed: %w", err)
 	}
 
-	if err := backend.Configure(name, resolvedConfig); err != nil {
-		return fmt.Errorf("backend configuration failed: %w", err)
+	// Register restart callback if supported
+	if withNotify, ok := backend.(interfaces.ExitAwareBackend); ok {
+		withNotify.SetExitHandler(func(deadName string) {
+			log.Printf("[proxy] Detected exit of '%s', attempting restart", deadName)
+			_ = StopProxy(deadName, p, cfg)
+			if err := StartProxy(deadName, p, cfg); err != nil {
+				log.Printf("[proxy] Restart of '%s' failed: %v", deadName, err)
+			} else {
+				log.Printf("[proxy] Restarted '%s' successfully", deadName)
+			}
+		})
 	}
 
 	activeHostByProxy[name] = p.Default
-
-	err = backend.Start(name, p, cfg)
-	if err != nil {
-		return err
-	}
-
-	// Optionally track the running instance
-	if r, ok := backend.(interfaces.InstanceReportingBackend); ok {
-		activeProxies[name] = r.GetInstance(name)
-	}
-
-	return nil
+	return backend.Start(name, p, cfg)
 }
 
 // StopProxy stops a running proxy by name and clears tracked state.
-func StopProxy(name string, proxyCfg config.Proxy, cfg *config.Config) error {
-	hostCfg, ok := cfg.Hosts[proxyCfg.Default]
+func StopProxy(name string, p config.Proxy, cfg *config.Config) error {
+	hostCfg, ok := cfg.Hosts[p.Default]
 	if !ok {
-		return fmt.Errorf("host '%s' not found", proxyCfg.Default)
+		return fmt.Errorf("host '%s' not found", p.Default)
 	}
-
 	backendName := hostCfg.Backend
 	if backendName == "" {
 		backendName = "ssh_exec"
 	}
-
 	backend, err := interfaces.GetBackend(backendName)
 	if err != nil {
 		return err
 	}
-
 	delete(activeHostByProxy, name)
-	delete(activeProxies, name)
-
 	return backend.Stop(name)
 }
 
 // GetProxyStatus returns runtime information about a proxy.
-func GetProxyStatus(name string, proxyCfg config.Proxy, cfg *config.Config) (*protocol.StatusResponse, error) {
-	hostCfg, ok := cfg.Hosts[proxyCfg.Default]
+func GetProxyStatus(name string, p config.Proxy, cfg *config.Config) (*protocol.StatusResponse, error) {
+	hostCfg, ok := cfg.Hosts[p.Default]
 	if !ok {
-		return nil, fmt.Errorf("host '%s' not found", proxyCfg.Default)
+		return nil, fmt.Errorf("host '%s' not found", p.Default)
 	}
-
 	backendName := hostCfg.Backend
 	if backendName == "" {
 		backendName = "ssh_exec"
 	}
-
 	backend, err := interfaces.GetBackend(backendName)
 	if err != nil {
 		return nil, err
 	}
-
 	pid, running := backend.Status(name)
-
 	return &protocol.StatusResponse{
 		Name:       name,
 		Backend:    backendName,
@@ -149,7 +134,8 @@ func GetProxyStatus(name string, proxyCfg config.Proxy, cfg *config.Config) (*pr
 	}, nil
 }
 
-// GetProxyInfo returns static and dynamic proxy metadata.
+// GetProxyInfo returns static and dynamic information about a proxy,
+// including its host, port, backend, credentials, allowed users and active host.
 func GetProxyInfo(name string, p config.Proxy, cfg *config.Config) (*protocol.InfoResponse, error) {
 	hostCfg, ok := cfg.Hosts[p.Default]
 	if !ok {
