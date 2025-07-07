@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	"github.com/mfulz/portgeist/interfaces"
-	"github.com/mfulz/portgeist/internal/config"
+	"github.com/mfulz/portgeist/internal/configd"
 	"github.com/mfulz/portgeist/internal/logging"
 )
 
@@ -56,7 +56,7 @@ func (s *sshExecBackend) Configure(name string, cfg map[string]any) error {
 }
 
 // Start launches the SSH tunnel process for a proxy.
-func (s *sshExecBackend) Start(name string, p config.Proxy, cfg *config.Config) error {
+func (s *sshExecBackend) Start(name string, p configd.Proxy, cfg *configd.Config) error {
 	hostName := p.Default
 	host, ok := cfg.Hosts[hostName]
 	if !ok {

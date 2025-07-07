@@ -11,7 +11,7 @@ import (
 	"os"
 
 	"github.com/mfulz/portgeist/dispatch"
-	"github.com/mfulz/portgeist/internal/config"
+	"github.com/mfulz/portgeist/internal/configd"
 	"github.com/mfulz/portgeist/internal/logging"
 	"github.com/mfulz/portgeist/protocol"
 )
@@ -24,7 +24,7 @@ func SetDispatcher(d *dispatch.Dispatcher) {
 
 // StartServerInstance starts a control listener based on the given configuration.
 // Supports "unix" and "tcp" control modes.
-func StartServerInstance(inst config.ControlInstance, cfg *config.Config) error {
+func StartServerInstance(inst configd.ControlInstance, cfg *configd.Config) error {
 	var ln net.Listener
 	var err error
 
@@ -61,7 +61,7 @@ func StartServerInstance(inst config.ControlInstance, cfg *config.Config) error 
 // If auth is disabled, returns "unauthenticated" as user.
 // If enabled, checks the provided token against the configured control logins.
 // Returns the authenticated username and whether the authentication was successful.
-func Authenticate(req *protocol.Request, cfg *config.Config, required bool) (string, bool) {
+func Authenticate(req *protocol.Request, cfg *configd.Config, required bool) (string, bool) {
 	if !required {
 		return "unauthenticated", true
 	}
@@ -78,7 +78,7 @@ func Authenticate(req *protocol.Request, cfg *config.Config, required bool) (str
 // handleConn handles an individual control connection.
 // It reads a JSON-encoded protocol.Request from the connection,
 // dispatches it via the global dispatcher, and writes the JSON response.
-func handleConn(conn net.Conn, inst config.ControlInstance, cfg *config.Config) {
+func handleConn(conn net.Conn, inst configd.ControlInstance, cfg *configd.Config) {
 	defer conn.Close()
 
 	decoder := json.NewDecoder(conn)

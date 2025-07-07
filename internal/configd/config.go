@@ -1,7 +1,7 @@
-// Package config provides loading and parsing of the Portgeist configuration
+// Package configd provides loading and parsing of the Portgeist configuration
 // file using Viper. It defines the full configuration schema and exposes
 // functions to access it at runtime.
-package config
+package configd
 
 import (
 	"fmt"

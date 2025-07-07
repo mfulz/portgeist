@@ -5,7 +5,7 @@ package interfaces
 import (
 	"fmt"
 
-	"github.com/mfulz/portgeist/internal/config"
+	"github.com/mfulz/portgeist/internal/configd"
 )
 
 // ProxyBackend defines the interface for launching, stopping,
@@ -13,7 +13,7 @@ import (
 type ProxyBackend interface {
 	// Start attempts to launch a dynamic tunnel for the given proxy using
 	// the configuration context provided.
-	Start(name string, proxy config.Proxy, cfg *config.Config) error
+	Start(name string, proxy configd.Proxy, cfg *configd.Config) error
 
 	// Stop attempts to cleanly shut down the proxy identified by its name.
 	Stop(name string) error

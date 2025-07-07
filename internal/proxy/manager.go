@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/mfulz/portgeist/interfaces"
-	"github.com/mfulz/portgeist/internal/config"
+	"github.com/mfulz/portgeist/internal/configd"
 	"github.com/mfulz/portgeist/internal/logging"
 	"github.com/mfulz/portgeist/protocol"
 )
@@ -40,7 +40,7 @@ func mergeConfig(global, override map[string]any) map[string]any {
 
 // StartAutostartProxies starts all proxies marked as autostart=true
 // from the provided configuration.
-func StartAutostartProxies(cfg *config.Config) error {
+func StartAutostartProxies(cfg *configd.Config) error {
 	for name, p := range cfg.Proxies.Proxies {
 		if p.Autostart {
 			logging.Log.Infof("[proxy] Autostart enabled for '%s'", name)
@@ -54,7 +54,7 @@ func StartAutostartProxies(cfg *config.Config) error {
 
 // StartProxy attempts to start a proxy via its defined backend,
 // using resolved backend config and storing active instance.
-func StartProxy(name string, p config.Proxy, cfg *config.Config) error {
+func StartProxy(name string, p configd.Proxy, cfg *configd.Config) error {
 	hostCfg, ok := cfg.Hosts[p.Default]
 	if !ok {
 		return fmt.Errorf("host '%s' not found for proxy '%s'", p.Default, name)
@@ -103,7 +103,7 @@ func StartProxy(name string, p config.Proxy, cfg *config.Config) error {
 }
 
 // StopProxy stops a running proxy by name and clears tracked state.
-func StopProxy(name string, p config.Proxy, cfg *config.Config) error {
+func StopProxy(name string, p configd.Proxy, cfg *configd.Config) error {
 	hostCfg, ok := cfg.Hosts[p.Default]
 	if !ok {
 		return fmt.Errorf("host '%s' not found", p.Default)
@@ -121,7 +121,7 @@ func StopProxy(name string, p config.Proxy, cfg *config.Config) error {
 }
 
 // GetProxyStatus returns runtime information about a proxy.
-func GetProxyStatus(name string, p config.Proxy, cfg *config.Config) (*protocol.StatusResponse, error) {
+func GetProxyStatus(name string, p configd.Proxy, cfg *configd.Config) (*protocol.StatusResponse, error) {
 	hostCfg, ok := cfg.Hosts[p.Default]
 	if !ok {
 		return nil, fmt.Errorf("host '%s' not found", p.Default)
@@ -146,7 +146,7 @@ func GetProxyStatus(name string, p config.Proxy, cfg *config.Config) (*protocol.
 
 // GetProxyInfo returns static and dynamic information about a proxy,
 // including its host, port, backend, credentials, allowed users and active host.
-func GetProxyInfo(name string, p config.Proxy, cfg *config.Config) (*protocol.InfoResponse, error) {
+func GetProxyInfo(name string, p configd.Proxy, cfg *configd.Config) (*protocol.InfoResponse, error) {
 	hostCfg, ok := cfg.Hosts[p.Default]
 	if !ok {
 		return nil, fmt.Errorf("host not found")

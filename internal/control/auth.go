@@ -1,8 +1,8 @@
 package control
 
-import "github.com/mfulz/portgeist/internal/config"
+import "github.com/mfulz/portgeist/internal/configd"
 
-func IsControlAllowed(proxyCfg config.Proxy, user string, skip bool) bool {
+func IsControlAllowed(proxyCfg configd.Proxy, user string, skip bool) bool {
 	if skip {
 		return true
 	}

@@ -11,7 +11,7 @@ import (
 
 	"github.com/mfulz/portgeist/dispatch"
 	_ "github.com/mfulz/portgeist/internal/backend"
-	"github.com/mfulz/portgeist/internal/config"
+	"github.com/mfulz/portgeist/internal/configd"
 	"github.com/mfulz/portgeist/internal/configloader"
 	"github.com/mfulz/portgeist/internal/control"
 	"github.com/mfulz/portgeist/internal/logging"
@@ -20,13 +20,13 @@ import (
 )
 
 func main() {
-	err := config.LoadConfig()
+	err := configd.LoadConfig()
 	if err != nil {
 		logging.Log.Fatalf("[geistd] Failed to load config: %v", err)
 	}
 	logging.Log.Debugln("[geistd] Configuration loaded successfully")
 
-	cfg := configloader.MustGetConfig[*config.Config]()
+	cfg := configloader.MustGetConfig[*configd.Config]()
 
 	// Start autostart proxies
 	for name, p := range cfg.Proxies.Proxies {
@@ -46,7 +46,7 @@ func main() {
 			continue
 		}
 
-		go func(inst config.ControlInstance) {
+		go func(inst configd.ControlInstance) {
 			logging.Log.Infof("[control:%s] Starting (%s): %s", inst.Name, inst.Mode, inst.Listen)
 
 			dispatcher := dispatch.New()
