@@ -3,10 +3,10 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/mfulz/portgeist/internal/launchcli"
+	"github.com/mfulz/portgeist/internal/logging"
 
 	"github.com/spf13/cobra"
 )
@@ -24,13 +24,13 @@ Example:
   geistctl launch -- alacritty --class testenv`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
-			fmt.Fprintln(os.Stderr, "Missing command to execute.")
+			logging.Log.Errorln("Missing command to execute.")
 			os.Exit(1)
 		}
 
 		cfg, err := launchcli.LoadFileConfig()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Config error: %v\n", err)
+			logging.Log.Errorf("Config error: %v\n", err)
 			os.Exit(1)
 		}
 
@@ -38,7 +38,7 @@ Example:
 		if cfg.ConfigTemplate != "" {
 			confPath, err = launchcli.GenerateProxyConf(cfg.ConfigTemplate, 8889)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to create proxy config: %v\n", err)
+				logging.Log.Errorf("Failed to create proxy config: %v\n", err)
 				os.Exit(1)
 			}
 		}
@@ -51,7 +51,7 @@ Example:
 			ConfPath: confPath,
 		})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Launch failed: %v\n", err)
+			logging.Log.Fatalf("Launch failed: %v\n", err)
 			os.Exit(1)
 		}
 	},
