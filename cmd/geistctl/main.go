@@ -5,7 +5,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/mfulz/portgeist/cmd/geistctl/cmd"
@@ -25,16 +24,9 @@ func main() {
 	var err error
 	err = configcli.LoadConfig()
 	if err != nil {
-		log.Fatalf("[geistctl] Failed to load config: %v", err)
+		logging.Log.Fatalf("[geistctl] Failed to load config: %v", err)
 		os.Exit(1)
 	}
-
-	err = logging.Init()
-	if err != nil {
-		log.Fatalf("[geistctl] Failed to init logger: %v", err)
-		os.Exit(1)
-	}
-	// logging.Log.Infof("[geistctl] Log Config: %v", controlcli.CtlCfg.Logger)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

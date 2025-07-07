@@ -22,17 +22,11 @@ import (
 func main() {
 	err := config.LoadConfig()
 	if err != nil {
-		log.Fatalf("[geistd] Failed to load config: %v", err)
+		logging.Log.Fatalf("[geistd] Failed to load config: %v", err)
 	}
-	log.Println("[geistd] Configuration loaded successfully")
+	logging.Log.Debugln("[geistd] Configuration loaded successfully")
 
 	cfg := configloader.MustGetConfig[*config.Config]()
-
-	err = logging.Init()
-	if err != nil {
-		log.Fatalf("[geistd] Failed to load log config: %v", err)
-	}
-	logging.Log.Infof("[geistd] Log Config: %v", cfg.Logger)
 
 	// Start autostart proxies
 	for name, p := range cfg.Proxies.Proxies {

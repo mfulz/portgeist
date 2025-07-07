@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/mfulz/portgeist/internal/configcli"
 	"github.com/mfulz/portgeist/internal/configloader"
@@ -79,7 +78,7 @@ var proxyInfoCmd = &cobra.Command{
 		b, _ := json.Marshal(resp.Data)
 		_ = json.Unmarshal(b, &info)
 
-		fmt.Printf("Name:         %s\nBackend:      %s\nRunning:      %v\nPID:          %d\nHost:         %s:%d\nLogin:        %s\nAllowed:      %v\nActive Host:  %s\n",
+		logging.Log.Infof("Name:         %s\nBackend:      %s\nRunning:      %v\nPID:          %d\nHost:         %s:%d\nLogin:        %s\nAllowed:      %v\nActive Host:  %s\n",
 			info.Name, info.Backend, info.Running, info.PID,
 			info.Host, info.Port, info.Login, info.Allowed, info.ActiveHost)
 	},
@@ -103,9 +102,9 @@ var proxyListCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Println("Available proxies:")
+		logging.Log.Infoln("Available proxies:")
 		for _, name := range names {
-			fmt.Printf(" - %s\n", name)
+			logging.Log.Infof(" - %s\n", name)
 		}
 	},
 }
@@ -116,7 +115,7 @@ var proxySetActiveCmd = &cobra.Command{
 	Short: "Set active host for a proxy",
 	Run: func(cmd *cobra.Command, args []string) {
 		if proxyName == "" || proxyHost == "" {
-			fmt.Println("Please provide -p <proxy> and -o <host>")
+			logging.Log.Infoln("Please provide -p <proxy> and -o <host>")
 			return
 		}
 
@@ -125,7 +124,7 @@ var proxySetActiveCmd = &cobra.Command{
 			Host: proxyHost,
 		}, "")
 		if resp != nil && resp.Status == "ok" {
-			fmt.Printf("Active host for proxy '%s' set to '%s'\n", proxyName, proxyHost)
+			logging.Log.Infof("Active host for proxy '%s' set to '%s'\n", proxyName, proxyHost)
 		}
 	},
 }
@@ -149,15 +148,15 @@ func execWithAuth(cmdType string, payload interface{}, successMsg string) *proto
 	}
 
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		logging.Log.Infof("Error: %v\n", err)
 		return nil
 	}
 	if resp.Status != "ok" {
-		fmt.Printf("Error: %s\n", resp.Error)
+		logging.Log.Infof("Error: %s\n", resp.Error)
 		return resp
 	}
 	if successMsg != "" {
-		fmt.Printf(successMsg, proxyName)
+		logging.Log.Infof(successMsg, proxyName)
 	}
 	return resp
 }

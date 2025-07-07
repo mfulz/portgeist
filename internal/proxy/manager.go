@@ -5,10 +5,10 @@ package proxy
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/mfulz/portgeist/interfaces"
 	"github.com/mfulz/portgeist/internal/config"
+	"github.com/mfulz/portgeist/internal/logging"
 	"github.com/mfulz/portgeist/protocol"
 )
 
@@ -21,7 +21,7 @@ var activeProxies = make(map[string]interfaces.RunningInstance)
 // StopAll cleanly stops all active proxies using tracked instances.
 func StopAll() {
 	for name, inst := range activeProxies {
-		log.Printf("[proxy] Shutting down '%s'...", name)
+		logging.Log.Infof("[proxy] Shutting down '%s'...", name)
 		inst.Stop()
 	}
 }
@@ -43,9 +43,9 @@ func mergeConfig(global, override map[string]any) map[string]any {
 func StartAutostartProxies(cfg *config.Config) error {
 	for name, p := range cfg.Proxies.Proxies {
 		if p.Autostart {
-			log.Printf("[proxy] Autostart enabled for '%s'", name)
+			logging.Log.Infof("[proxy] Autostart enabled for '%s'", name)
 			if err := StartProxy(name, p, cfg); err != nil {
-				log.Printf("[proxy] Failed to start '%s': %v", name, err)
+				logging.Log.Infof("[proxy] Failed to start '%s': %v", name, err)
 			}
 		}
 	}
@@ -78,12 +78,12 @@ func StartProxy(name string, p config.Proxy, cfg *config.Config) error {
 	// Register restart callback if supported
 	if withNotify, ok := backend.(interfaces.ExitAwareBackend); ok {
 		withNotify.SetExitHandler(func(deadName string) {
-			log.Printf("[proxy] Detected exit of '%s', attempting restart", deadName)
+			logging.Log.Infof("[proxy] Detected exit of '%s', attempting restart", deadName)
 			_ = StopProxy(deadName, p, cfg)
 			if err := StartProxy(deadName, p, cfg); err != nil {
-				log.Printf("[proxy] Restart of '%s' failed: %v", deadName, err)
+				logging.Log.Infof("[proxy] Restart of '%s' failed: %v", deadName, err)
 			} else {
-				log.Printf("[proxy] Restarted '%s' successfully", deadName)
+				logging.Log.Infof("[proxy] Restarted '%s' successfully", deadName)
 			}
 		})
 	}

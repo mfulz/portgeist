@@ -5,13 +5,13 @@ package backend
 
 import (
 	"fmt"
-	"log"
 	"os/exec"
 	"sync"
 	"syscall"
 
 	"github.com/mfulz/portgeist/interfaces"
 	"github.com/mfulz/portgeist/internal/config"
+	"github.com/mfulz/portgeist/internal/logging"
 )
 
 type sshExecBackend struct {
@@ -90,7 +90,7 @@ func (s *sshExecBackend) Start(name string, p config.Proxy, cfg *config.Config) 
 	sshBinary := key("ssh_binary", "ssh")
 	sshpassBinary := key("sshpass_binary", "sshpass")
 
-	log.Printf("[ssh_exec] Launching SOCKS proxy '%s' on %s via %s", name, localAddr, remoteAddr)
+	logging.Log.Infof("[ssh_exec] Launching SOCKS proxy '%s' on %s via %s", name, localAddr, remoteAddr)
 
 	cmd := exec.Command(
 		sshpassBinary, "-p", login.Password,
@@ -126,7 +126,7 @@ func (s *sshExecBackend) Start(name string, p config.Proxy, cfg *config.Config) 
 
 	go func() {
 		_ = cmd.Wait()
-		log.Printf("[ssh_exec] Proxy '%s' exited", name)
+		logging.Log.Infof("[ssh_exec] Proxy '%s' exited", name)
 
 		s.mu.Lock()
 		intentional := s.stopFlags[name]
@@ -139,7 +139,7 @@ func (s *sshExecBackend) Start(name string, p config.Proxy, cfg *config.Config) 
 		}
 	}()
 
-	log.Printf("[ssh_exec] Proxy '%s' started (PID %d)", name, cmd.Process.Pid)
+	logging.Log.Infof("[ssh_exec] Proxy '%s' started (PID %d)", name, cmd.Process.Pid)
 	return nil
 }
 
@@ -151,17 +151,17 @@ func (s *sshExecBackend) Stop(name string) error {
 	s.mu.Unlock()
 
 	if !ok {
-		log.Printf("[ssh_exec] No active process found for proxy '%s'", name)
+		logging.Log.Infof("[ssh_exec] No active process found for proxy '%s'", name)
 		return nil
 	}
 
-	log.Printf("[ssh_exec] Stopping proxy '%s' (PID %d)", name, cmd.Process.Pid)
+	logging.Log.Infof("[ssh_exec] Stopping proxy '%s' (PID %d)", name, cmd.Process.Pid)
 
 	if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM); err != nil {
 		return fmt.Errorf("failed to kill process for '%s': %w", name, err)
 	}
 
-	log.Printf("[ssh_exec] Proxy '%s' stop signal sent", name)
+	logging.Log.Infof("[ssh_exec] Proxy '%s' stop signal sent", name)
 	return nil
 }
 

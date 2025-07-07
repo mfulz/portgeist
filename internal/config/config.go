@@ -107,7 +107,17 @@ func LoadConfig() error {
 		return fmt.Errorf("config unmarshal failed: %w", err)
 	}
 
+	configCfg, ok := configloader.TryGetConfig[*logging.Config]()
+	if ok {
+		*configCfg = cfg.Logger
+	} else {
+		configloader.RegisterConfig(&cfg.Logger)
+	}
+	err = logging.Init()
+	if err != nil {
+		return fmt.Errorf("[geistd] Failed to init logger: %v", err)
+	}
+
 	configloader.RegisterConfig(&cfg)
-	configloader.RegisterConfig(&cfg.Logger)
 	return nil
 }

@@ -75,3 +75,14 @@ func Init() error {
 	Log = logger.Sugar()
 	return nil
 }
+
+func init() {
+	// default config
+	cfg := &Config{
+		Level:    "info",
+		ToStdout: true,
+	}
+
+	configloader.RegisterConfig(cfg)
+	Init()
+}

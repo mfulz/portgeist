@@ -7,12 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 
 	"github.com/mfulz/portgeist/dispatch"
 	"github.com/mfulz/portgeist/internal/config"
+	"github.com/mfulz/portgeist/internal/logging"
 	"github.com/mfulz/portgeist/protocol"
 )
 
@@ -47,7 +47,7 @@ func StartServerInstance(inst config.ControlInstance, cfg *config.Config) error 
 		for {
 			conn, err := ln.Accept()
 			if err != nil {
-				log.Printf("[control:%s] Accept error: %v", inst.Name, err)
+				logging.Log.Infof("[control:%s] Accept error: %v", inst.Name, err)
 				continue
 			}
 			go handleConn(conn, inst, cfg)
@@ -88,16 +88,16 @@ func handleConn(conn net.Conn, inst config.ControlInstance, cfg *config.Config) 
 		var req protocol.Request
 		if err := decoder.Decode(&req); err != nil {
 			if errors.Is(err, io.EOF) {
-				log.Printf("[control:%s] Client closed connection early", inst.Name)
+				logging.Log.Infof("[control:%s] Client closed connection early", inst.Name)
 				return
 			}
-			log.Printf("[control:%s] Failed to decode request: %v", inst.Name, err)
+			logging.Log.Infof("[control:%s] Failed to decode request: %v", inst.Name, err)
 			return
 		}
 
 		user, ok := Authenticate(&req, cfg, inst.Auth.Enabled)
 		if !ok {
-			log.Printf("[control:%s] Invalid credentials for user: %s", inst.Name, req.Auth.User)
+			logging.Log.Infof("[control:%s] Invalid credentials for user: %s", inst.Name, req.Auth.User)
 			_ = encoder.Encode(&protocol.Response{
 				Status: "error",
 				Error:  "invalid credentials",
@@ -111,7 +111,7 @@ func handleConn(conn net.Conn, inst config.ControlInstance, cfg *config.Config) 
 		req.Auth.User = user
 		resp := dispatcher.Dispatch(&req)
 		if err := encoder.Encode(resp); err != nil {
-			log.Printf("[control:%s] Failed to send response: %v", inst.Name, err)
+			logging.Log.Infof("[control:%s] Failed to send response: %v", inst.Name, err)
 			return
 		}
 	}
