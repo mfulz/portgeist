@@ -33,20 +33,23 @@ type ProxyBackend interface {
 // RunningInstance represents an actively running proxy instance.
 // It must be stoppable via a Stop() call.
 type RunningInstance interface {
+	// Stop terminates the proxy instance cleanly.
 	Stop()
 }
 
 // InstanceReportingBackend is an optional extension to ProxyBackend.
-// It allows the backend to expose a live RunningInstance for later control.
+// It allows the backend to report live instances for proxy management.
 type InstanceReportingBackend interface {
 	ProxyBackend
+	// GetInstance returns a running instance associated with the given name.
 	GetInstance(name string) RunningInstance
 }
 
 // ExitAwareBackend is an optional extension to ProxyBackend.
-// It allows the backend to notify a callback when a process exits.
+// It allows the backend to notify a callback when a process exits unexpectedly.
 type ExitAwareBackend interface {
 	ProxyBackend
+	// SetExitHandler registers a callback to be invoked when a process exits unintentionally.
 	SetExitHandler(func(name string))
 }
 

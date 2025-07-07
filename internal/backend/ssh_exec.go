@@ -18,8 +18,8 @@ type sshExecBackend struct {
 	mu           sync.Mutex
 	procs        map[string]*exec.Cmd
 	settings     map[string]map[string]any
-	stopFlags    map[string]bool   // Tracks intentional shutdowns
-	exitCallback func(name string) // Optional exit notification callback
+	stopFlags    map[string]bool
+	exitCallback func(name string)
 }
 
 func init() {
@@ -42,8 +42,7 @@ func (s *sshInstance) Stop() {
 	}
 }
 
-// SetExitHandler allows proxy manager to register a callback for process exit.
-// The callback is only invoked if the process exits unintentionally.
+// SetExitHandler registers a callback for unexpected process exits.
 func (s *sshExecBackend) SetExitHandler(cb func(name string)) {
 	s.exitCallback = cb
 }
@@ -120,7 +119,6 @@ func (s *sshExecBackend) Start(name string, p config.Proxy, cfg *config.Config) 
 		return fmt.Errorf("ssh start failed: %w", err)
 	}
 
-	// Track and start wait loop
 	s.mu.Lock()
 	s.procs[name] = cmd
 	s.stopFlags[name] = false
@@ -132,6 +130,7 @@ func (s *sshExecBackend) Start(name string, p config.Proxy, cfg *config.Config) 
 
 		s.mu.Lock()
 		intentional := s.stopFlags[name]
+		delete(s.procs, name)
 		delete(s.stopFlags, name)
 		s.mu.Unlock()
 
@@ -149,7 +148,6 @@ func (s *sshExecBackend) Stop(name string) error {
 	s.mu.Lock()
 	s.stopFlags[name] = true
 	cmd, ok := s.procs[name]
-	delete(s.procs, name)
 	s.mu.Unlock()
 
 	if !ok {
@@ -163,7 +161,7 @@ func (s *sshExecBackend) Stop(name string) error {
 		return fmt.Errorf("failed to kill process for '%s': %w", name, err)
 	}
 
-	log.Printf("[ssh_exec] Proxy '%s' stopped successfully", name)
+	log.Printf("[ssh_exec] Proxy '%s' stop signal sent", name)
 	return nil
 }
 
