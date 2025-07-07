@@ -89,7 +89,17 @@ func StartProxy(name string, p config.Proxy, cfg *config.Config) error {
 	}
 
 	activeHostByProxy[name] = p.Default
-	return backend.Start(name, p, cfg)
+
+	if err := backend.Start(name, p, cfg); err != nil {
+		return err
+	}
+
+	if reporting, ok := backend.(interfaces.InstanceReportingBackend); ok {
+		if inst := reporting.GetInstance(name); inst != nil {
+			activeProxies[name] = inst
+		}
+	}
+	return nil
 }
 
 // StopProxy stops a running proxy by name and clears tracked state.
