@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/mfulz/portgeist/internal/configloader"
+	"github.com/mfulz/portgeist/internal/logging"
 	"github.com/spf13/viper"
 )
 
@@ -17,6 +18,7 @@ type Config struct {
 	Proxies  ProxiesConfig             `mapstructure:"proxies"`
 	Control  ControlMultiConfig        `mapstructure:"control"`
 	Backends map[string]map[string]any `yaml:"backends"`
+	Logger   logging.Config            `mapstructure:"log"`
 }
 
 // Login holds SSH/VPN credential information.

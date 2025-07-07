@@ -13,6 +13,7 @@ import (
 	_ "github.com/mfulz/portgeist/internal/backend"
 	"github.com/mfulz/portgeist/internal/config"
 	"github.com/mfulz/portgeist/internal/control"
+	"github.com/mfulz/portgeist/internal/logging"
 	"github.com/mfulz/portgeist/internal/proxy"
 	"github.com/mfulz/portgeist/protocol"
 )
@@ -24,12 +25,18 @@ func main() {
 	}
 	log.Println("[geistd] Configuration loaded successfully")
 
+	err = logging.Init(cfg.Logger)
+	if err != nil {
+		log.Fatalf("[geistd] Failed to load log config: %v", err)
+	}
+	logging.Log.Infof("[geistd] Log Config: %v", cfg.Logger)
+
 	// Start autostart proxies
 	for name, p := range cfg.Proxies.Proxies {
 		if p.Autostart {
-			log.Printf("[proxy] Autostart enabled for '%s'", name)
+			logging.Log.Infof("[proxy] Autostart enabled for '%s'", name)
 			if err := proxy.StartProxy(name, p, cfg); err != nil {
-				log.Printf("[proxy] Failed to start '%s': %v", name, err)
+				logging.Log.Warnf("[proxy] Failed to start '%s': %v", name, err)
 			} else {
 				log.Printf("[proxy] Proxy '%s' started", name)
 			}
@@ -43,7 +50,7 @@ func main() {
 		}
 
 		go func(inst config.ControlInstance) {
-			log.Printf("[control:%s] Starting (%s): %s", inst.Name, inst.Mode, inst.Listen)
+			logging.Log.Infof("[control:%s] Starting (%s): %s", inst.Name, inst.Mode, inst.Listen)
 
 			dispatcher := dispatch.New()
 
