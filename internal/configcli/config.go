@@ -12,7 +12,8 @@ import (
 
 // UserConfig represents authentication info for a specific logical user.
 type UserConfig struct {
-	Token string `mapstructure:"token"`
+	Username string `mapstructure:"username"`
+	Token    string `mapstructure:"token"`
 }
 
 // DaemonConfig represents one connection target (unix socket or TCP).

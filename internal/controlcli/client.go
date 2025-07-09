@@ -27,7 +27,7 @@ func SendCommandWithAuth(cfg *configcli.Config, daemonName, userName, command st
 		Type: command,
 		Data: data,
 		Auth: &protocol.Auth{
-			User:  userName,
+			User:  user.Username,
 			Token: user.Token,
 		},
 	}
