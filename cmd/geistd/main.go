@@ -163,6 +163,28 @@ func main() {
 				return &protocol.Response{Status: "ok"}
 			})
 
+			dispatcher.Register(protocol.CmdProxyResolv, func(req *protocol.Request) *protocol.Response {
+				var payload protocol.ResolvRequest
+				_ = decodePayload(req.Data, &payload)
+
+				proxyCfg, ok := cfg.Proxies.Proxies[payload.Alias]
+				if !ok {
+					return &protocol.Response{Status: "error", Error: "unknown proxy"}
+				}
+				user := extractUser(req)
+				if !control.IsControlAllowed(proxyCfg, user, !inst.Auth.Enabled) {
+					return &protocol.Response{Status: "error", Error: "access denied"}
+				}
+
+				return &protocol.Response{
+					Status: "ok",
+					Data: protocol.ResolvResponse{
+						Host: cfg.Proxies.Bind,
+						Port: proxyCfg.Port,
+					},
+				}
+			})
+
 			control.SetDispatcher(dispatcher)
 
 			if err := control.StartServerInstance(inst, cfg); err != nil {

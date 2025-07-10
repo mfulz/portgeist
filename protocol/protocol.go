@@ -12,6 +12,7 @@ const (
 	CmdProxyInfo      = "proxy.info"
 	CmdProxySetActive = "proxy.setactive"
 	CmdPing           = "system.ping"
+	CmdProxyResolv    = "proxy.resolve"
 )
 
 // Request represents a message sent from a client to the daemon.
@@ -82,4 +83,13 @@ type SetActiveRequest struct {
 // ListResponse wraps a list of available proxy names for structured parsing.
 type ListResponse struct {
 	Proxies []string `json:"proxies"`
+}
+
+type ResolvRequest struct {
+	Alias string `json:"alias"`
+}
+
+type ResolvResponse struct {
+	Host string `json:"host"`
+	Port int    `json:"port"`
 }

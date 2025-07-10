@@ -115,17 +115,17 @@ func ProxyList(cfg *configcli.Config, daemonName, overrideAddr, overrideToken, u
 	return &list, nil
 }
 
-// ResolveProxy sends CmdProxyResolv and returns the host:port string, or "" on failure.
-// func ResolveProxy(alias string, cfg *configcli.Config, daemonName, overrideAddr, overrideToken, user string) string {
-// 	resp := execWithAuth(protocol.CmdProxyResolv, protocol.ResolvRequest{Alias: alias}, alias, cfg, daemonName, overrideAddr, overrideToken, user, "")
-// 	if resp != nil && resp.Status == "ok" {
-// 		var r protocol.ResolvResponse
-// 		b, _ := json.Marshal(resp.Data)
-// 		if err := json.Unmarshal(b, &r); err != nil {
-// 			logging.Log.Errorf("ResolveProxy unmarshal failed: %v", err)
-// 			return ""
-// 		}
-// 		return fmt.Sprintf("%s:%d", r.Host, r.Port)
-// 	}
-// 	return ""
-// }
+// ResolveProxy resolves a proxy alias via daemon and returns host/port.
+func ResolveProxy(alias string, cfg *configcli.Config, daemonName, overrideAddr, overrideToken, user string) (*protocol.ResolvResponse, error) {
+	resp, err := execWithAuth(protocol.CmdProxyResolv, protocol.ResolvRequest{Alias: alias}, alias, cfg, daemonName, overrideAddr, overrideToken, user, "")
+	if err != nil {
+		return nil, err
+	}
+	var resolve protocol.ResolvResponse
+	data, _ := json.Marshal(resp.Data)
+	if err := json.Unmarshal(data, &resolve); err != nil {
+		logging.Log.Errorf("ResolveProxy unmarshal failed: %v", err)
+		return nil, err
+	}
+	return &resolve, nil
+}
