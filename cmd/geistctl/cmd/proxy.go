@@ -34,7 +34,10 @@ var proxyStartCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start a proxy by name",
 	Run: func(cmd *cobra.Command, args []string) {
-		execWithAuth(protocol.CmdProxyStart, protocol.StartRequest{Name: proxyName}, "Requested start of proxy: %s\n")
+		cfg := configloader.MustGetConfig[*configcli.Config]()
+		if err := controlcli.StartProxy(proxyName, cfg, daemonName, overrideAddr, overrideToken, controlUser); err != nil {
+			logging.Log.Errorf("[geistctl] error: %v", err)
+		}
 	},
 }
 
@@ -43,7 +46,10 @@ var proxyStopCmd = &cobra.Command{
 	Use:   "stop",
 	Short: "Stop a proxy by name",
 	Run: func(cmd *cobra.Command, args []string) {
-		execWithAuth(protocol.CmdProxyStop, protocol.StopRequest{Name: proxyName}, "Requested stop of proxy: %s\n")
+		cfg := configloader.MustGetConfig[*configcli.Config]()
+		if err := controlcli.StopProxy(proxyName, cfg, daemonName, overrideAddr, overrideToken, controlUser); err != nil {
+			logging.Log.Errorf("[geistctl] error: %v", err)
+		}
 	},
 }
 
@@ -52,13 +58,12 @@ var proxyStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show status of a proxy",
 	Run: func(cmd *cobra.Command, args []string) {
-		resp := execWithAuth(protocol.CmdProxyStatus, protocol.StatusRequest{Name: proxyName}, "")
-		if resp == nil || resp.Status != "ok" {
+		cfg := configloader.MustGetConfig[*configcli.Config]()
+		status, err := controlcli.ProxyStatus(proxyName, cfg, daemonName, overrideAddr, overrideToken, controlUser)
+		if err != nil {
+			logging.Log.Errorf("[geistctl] error: %v", err)
 			return
 		}
-		var status protocol.StatusResponse
-		bytes, _ := json.Marshal(resp.Data)
-		_ = json.Unmarshal(bytes, &status)
 
 		logging.Log.Infof("Proxy: %s\nBackend: %s\nRunning: %v\nPID: %d\nActive Host: %s\n",
 			status.Name, status.Backend, status.Running, status.PID, status.ActiveHost)
@@ -70,13 +75,12 @@ var proxyInfoCmd = &cobra.Command{
 	Use:   "info",
 	Short: "Show combined config and runtime info of a proxy",
 	Run: func(cmd *cobra.Command, args []string) {
-		resp := execWithAuth(protocol.CmdProxyInfo, protocol.InfoRequest{Name: proxyName}, "")
-		if resp == nil || resp.Status != "ok" {
+		cfg := configloader.MustGetConfig[*configcli.Config]()
+		info, err := controlcli.ProxyInfo(proxyName, cfg, daemonName, overrideAddr, overrideToken, controlUser)
+		if err != nil {
+			logging.Log.Errorf("[geistctl] error: %v", err)
 			return
 		}
-		var info protocol.InfoResponse
-		b, _ := json.Marshal(resp.Data)
-		_ = json.Unmarshal(b, &info)
 
 		logging.Log.Infof("Name:         %s\nBackend:      %s\nRunning:      %v\nPID:          %d\nHost:         %s:%d\nLogin:        %s\nAllowed:      %v\nActive Host:  %s\n",
 			info.Name, info.Backend, info.Running, info.PID,
@@ -119,13 +123,12 @@ var proxySetActiveCmd = &cobra.Command{
 			return
 		}
 
-		resp := execWithAuth(protocol.CmdProxySetActive, protocol.SetActiveRequest{
-			Name: proxyName,
-			Host: proxyHost,
-		}, "")
-		if resp != nil && resp.Status == "ok" {
-			logging.Log.Infof("Active host for proxy '%s' set to '%s'\n", proxyName, proxyHost)
+		cfg := configloader.MustGetConfig[*configcli.Config]()
+		if err := controlcli.SetActiveProxy(proxyName, cfg, daemonName, overrideAddr, overrideToken, controlUser, proxyHost); err != nil {
+			logging.Log.Errorf("[geistctl] error: %v", err)
+			return
 		}
+		logging.Log.Infof("Active host for proxy '%s' set to '%s'\n", proxyName, proxyHost)
 	},
 }
 
