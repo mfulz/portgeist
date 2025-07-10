@@ -4,8 +4,6 @@
 package cmd
 
 import (
-	"encoding/json"
-
 	"github.com/mfulz/portgeist/internal/configcli"
 	"github.com/mfulz/portgeist/internal/configloader"
 	"github.com/mfulz/portgeist/internal/controlcli"
@@ -93,21 +91,20 @@ var proxyListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List available proxies for the current user",
 	Run: func(cmd *cobra.Command, args []string) {
-		resp := execWithAuth(protocol.CmdProxyList, nil, "")
-		if resp == nil || resp.Status != "ok" {
+		cfg := configloader.MustGetConfig[*configcli.Config]()
+		list, err := controlcli.ProxyList(cfg, daemonName, overrideAddr, overrideToken, controlUser)
+		if err != nil {
+			logging.Log.Errorf("[geistctl] error: %v", err)
 			return
 		}
-		var names []string
-		data, _ := json.Marshal(resp.Data)
-		_ = json.Unmarshal(data, &names)
 
-		if len(names) == 0 {
+		if len(list.Proxies) == 0 {
 			logging.Log.Warnln("No proxies available.")
 			return
 		}
 
 		logging.Log.Infoln("Available proxies:")
-		for _, name := range names {
+		for _, name := range list.Proxies {
 			logging.Log.Infof(" - %s\n", name)
 		}
 	},

@@ -78,3 +78,8 @@ type SetActiveRequest struct {
 	Name string `json:"name"`
 	Host string `json:"host"`
 }
+
+// ListResponse wraps a list of available proxy names for structured parsing.
+type ListResponse struct {
+	Proxies []string `json:"proxies"`
+}

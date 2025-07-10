@@ -113,7 +113,12 @@ func main() {
 						result = append(result, name)
 					}
 				}
-				return &protocol.Response{Status: "ok", Data: result}
+				return &protocol.Response{
+					Status: "ok",
+					Data: protocol.ListResponse{
+						Proxies: result,
+					},
+				}
 			})
 
 			dispatcher.Register(protocol.CmdProxyInfo, func(req *protocol.Request) *protocol.Response {

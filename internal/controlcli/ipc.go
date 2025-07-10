@@ -100,6 +100,21 @@ func SetActiveProxy(name string, cfg *configcli.Config, daemonName, overrideAddr
 	return err
 }
 
+// ProxyList sends CmdProxyList and returns a slice of proxy names.
+func ProxyList(cfg *configcli.Config, daemonName, overrideAddr, overrideToken, user string) (*protocol.ListResponse, error) {
+	resp, err := execWithAuth(protocol.CmdProxyList, nil, "list", cfg, daemonName, overrideAddr, overrideToken, user, "")
+	if err != nil {
+		return nil, err
+	}
+	var list protocol.ListResponse
+	data, _ := json.Marshal(resp.Data)
+	if err := json.Unmarshal(data, &list); err != nil {
+		logging.Log.Errorf("Failed to parse ListResponse: %v", err)
+		return nil, err
+	}
+	return &list, nil
+}
+
 // ResolveProxy sends CmdProxyResolv and returns the host:port string, or "" on failure.
 // func ResolveProxy(alias string, cfg *configcli.Config, daemonName, overrideAddr, overrideToken, user string) string {
 // 	resp := execWithAuth(protocol.CmdProxyResolv, protocol.ResolvRequest{Alias: alias}, alias, cfg, daemonName, overrideAddr, overrideToken, user, "")
