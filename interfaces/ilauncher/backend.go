@@ -4,6 +4,7 @@ package ilauncher
 
 import (
 	"fmt"
+	"os/exec"
 
 	"github.com/spf13/cobra"
 )
@@ -17,10 +18,21 @@ type FileConfig struct {
 	ConfigTemplate string            `yaml:"config_template"` // optional backend-specific config
 }
 
+// Context holds CLI-level settings passed into launcher backends.
+type Context struct {
+	ProxyName     string
+	DaemonName    string
+	ControlUser   string
+	OverrideAddr  string
+	OverrideToken string
+}
+
 // LauncherBackend represents a pluggable launch implementation.
 type LauncherBackend interface {
 	Method() string
-	GetInstance(name string, cfg FileConfig, host string, port int) (*cobra.Command, error)
+	RegisterCliCmd(parent *cobra.Command, name string, cfg FileConfig, host string, port int, ctx Context) *cobra.Command
+	GetCmd(name string, cfg FileConfig, host string, port int, ctx Context, args []string) (*exec.Cmd, error)
+	Execute(name string, cfg FileConfig, host string, port int, ctx Context, args []string) error
 }
 
 // backendRegistry stores all registered backend types by method name.

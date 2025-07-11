@@ -95,18 +95,30 @@ func init() {
 			resolvedPort = proxyPort
 		}
 
-		backend, err := ilauncher.GetBackend(launcherCfg.Method)
-		if err != nil {
-			return fmt.Errorf("backend not found: %s", launcherCfg.Method)
+		ctx := ilauncher.Context{
+			ProxyName:     proxyName,
+			DaemonName:    daemonName,
+			ControlUser:   controlUser,
+			OverrideAddr:  overrideAddr,
+			OverrideToken: overrideToken,
 		}
 
-		subcmd, err := backend.GetInstance(name, *launcherCfg, resolvedHost, resolvedPort)
-		if err != nil {
-			return fmt.Errorf("failed to instantiate launcher: %w", err)
+		var subcmd *cobra.Command
+		for aname, aLauncherCfg := range cfg.Launchers {
+			backend, err := ilauncher.GetBackend(aLauncherCfg.Method)
+			if err != nil {
+				logging.Log.Errorf("unknown backend for launcher '%s': %v", aname, err)
+				continue
+			}
+			if aname == name {
+				subcmd = backend.RegisterCliCmd(LaunchCmd, name, *launcherCfg, resolvedHost, resolvedPort, ctx)
+			}
 		}
 
-		subcmd.SetArgs(args)
-		return subcmd.Execute()
+		if subcmd != nil {
+			return subcmd.Execute()
+		}
+		return nil
 	}
 }
 
