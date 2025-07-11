@@ -3,7 +3,6 @@
 package main
 
 import (
-	"encoding/json"
 	"os"
 	"os/signal"
 	"syscall"
@@ -49,142 +48,13 @@ func main() {
 			logging.Log.Infof("[control:%s] Starting (%s): %s", inst.Name, inst.Mode, inst.Listen)
 
 			dispatcher := dispatch.New()
-
-			dispatcher.Register(protocol.CmdProxyStart, func(req *protocol.Request) *protocol.Response {
-				var payload protocol.StartRequest
-				_ = decodePayload(req.Data, &payload)
-
-				proxyCfg, ok := cfg.Proxies.Proxies[payload.Name]
-				if !ok {
-					return &protocol.Response{Status: "error", Error: "unknown proxy"}
-				}
-				user := extractUser(req)
-				if !control.IsControlAllowed(proxyCfg, user, !inst.Auth.Enabled) {
-					return &protocol.Response{Status: "error", Error: "access denied"}
-				}
-				if err := proxy.StartProxy(payload.Name, proxyCfg, cfg); err != nil {
-					return &protocol.Response{Status: "error", Error: err.Error()}
-				}
-				return &protocol.Response{Status: "ok"}
-			})
-
-			dispatcher.Register(protocol.CmdProxyStop, func(req *protocol.Request) *protocol.Response {
-				var payload protocol.StopRequest
-				_ = decodePayload(req.Data, &payload)
-
-				proxyCfg, ok := cfg.Proxies.Proxies[payload.Name]
-				if !ok {
-					return &protocol.Response{Status: "error", Error: "unknown proxy"}
-				}
-				user := extractUser(req)
-				if !control.IsControlAllowed(proxyCfg, user, !inst.Auth.Enabled) {
-					return &protocol.Response{Status: "error", Error: "access denied"}
-				}
-				if err := proxy.StopProxy(payload.Name, proxyCfg, cfg); err != nil {
-					return &protocol.Response{Status: "error", Error: err.Error()}
-				}
-				return &protocol.Response{Status: "ok"}
-			})
-
-			dispatcher.Register(protocol.CmdProxyStatus, func(req *protocol.Request) *protocol.Response {
-				var payload protocol.StatusRequest
-				_ = decodePayload(req.Data, &payload)
-
-				proxyCfg, ok := cfg.Proxies.Proxies[payload.Name]
-				if !ok {
-					return &protocol.Response{Status: "error", Error: "unknown proxy"}
-				}
-				user := extractUser(req)
-				if !control.IsControlAllowed(proxyCfg, user, !inst.Auth.Enabled) {
-					return &protocol.Response{Status: "error", Error: "access denied"}
-				}
-				status, err := proxy.GetProxyStatus(payload.Name, proxyCfg, cfg)
-				if err != nil {
-					return &protocol.Response{Status: "error", Error: err.Error()}
-				}
-				return &protocol.Response{Status: "ok", Data: status}
-			})
-
-			dispatcher.Register(protocol.CmdProxyList, func(req *protocol.Request) *protocol.Response {
-				user := extractUser(req)
-				var result []string
-				for name, proxyCfg := range cfg.Proxies.Proxies {
-					if control.IsControlAllowed(proxyCfg, user, !inst.Auth.Enabled) {
-						result = append(result, name)
-					}
-				}
-				return &protocol.Response{
-					Status: "ok",
-					Data: protocol.ListResponse{
-						Proxies: result,
-					},
-				}
-			})
-
-			dispatcher.Register(protocol.CmdProxyInfo, func(req *protocol.Request) *protocol.Response {
-				var payload protocol.InfoRequest
-				_ = decodePayload(req.Data, &payload)
-
-				proxyCfg, ok := cfg.Proxies.Proxies[payload.Name]
-				if !ok {
-					return &protocol.Response{Status: "error", Error: "unknown proxy"}
-				}
-				user := extractUser(req)
-				if !control.IsControlAllowed(proxyCfg, user, !inst.Auth.Enabled) {
-					return &protocol.Response{Status: "error", Error: "access denied"}
-				}
-				info, err := proxy.GetProxyInfo(payload.Name, proxyCfg, cfg)
-				if err != nil {
-					return &protocol.Response{Status: "error", Error: err.Error()}
-				}
-				return &protocol.Response{Status: "ok", Data: info}
-			})
-
-			dispatcher.Register(protocol.CmdProxySetActive, func(req *protocol.Request) *protocol.Response {
-				var payload protocol.SetActiveRequest
-				_ = decodePayload(req.Data, &payload)
-
-				proxyCfg, ok := cfg.Proxies.Proxies[payload.Name]
-				if !ok {
-					return &protocol.Response{Status: "error", Error: "unknown proxy"}
-				}
-				user := extractUser(req)
-				if !control.IsControlAllowed(proxyCfg, user, !inst.Auth.Enabled) {
-					return &protocol.Response{Status: "error", Error: "access denied"}
-				}
-				if _, ok := cfg.Hosts[payload.Host]; !ok {
-					return &protocol.Response{Status: "error", Error: "unknown host"}
-				}
-				proxyCfg.Default = payload.Host
-				_ = proxy.StopProxy(payload.Name, proxyCfg, cfg)
-				if err := proxy.StartProxy(payload.Name, proxyCfg, cfg); err != nil {
-					return &protocol.Response{Status: "error", Error: err.Error()}
-				}
-				return &protocol.Response{Status: "ok"}
-			})
-
-			dispatcher.Register(protocol.CmdProxyResolv, func(req *protocol.Request) *protocol.Response {
-				var payload protocol.ResolvRequest
-				_ = decodePayload(req.Data, &payload)
-
-				proxyCfg, ok := cfg.Proxies.Proxies[payload.Alias]
-				if !ok {
-					return &protocol.Response{Status: "error", Error: "unknown proxy"}
-				}
-				user := extractUser(req)
-				if !control.IsControlAllowed(proxyCfg, user, !inst.Auth.Enabled) {
-					return &protocol.Response{Status: "error", Error: "access denied"}
-				}
-
-				return &protocol.Response{
-					Status: "ok",
-					Data: protocol.ResolvResponse{
-						Host: cfg.Proxies.Bind,
-						Port: proxyCfg.Port,
-					},
-				}
-			})
-
+			dispatcher.Register(protocol.CmdProxyStart, control.StartProxyHandler(cfg, inst))
+			dispatcher.Register(protocol.CmdProxyStop, control.StopProxyHandler(cfg, inst))
+			dispatcher.Register(protocol.CmdProxyStatus, control.ProxyStatusHandler(cfg, inst))
+			dispatcher.Register(protocol.CmdProxyList, control.ProxyListHandler(cfg, inst))
+			dispatcher.Register(protocol.CmdProxyInfo, control.ProxyInfoHandler(cfg, inst))
+			dispatcher.Register(protocol.CmdProxySetActive, control.ProxySetActiveHandler(cfg, inst))
+			dispatcher.Register(protocol.CmdProxyResolv, control.ResolveProxyHandler(cfg, inst))
 			control.SetDispatcher(dispatcher)
 
 			if err := control.StartServerInstance(inst, cfg); err != nil {
@@ -208,18 +78,4 @@ func waitForShutdown() {
 	proxy.StopAll()
 
 	os.Exit(0)
-}
-
-// decodePayload marshals a map into the target struct.
-func decodePayload(input any, out any) error {
-	data, _ := json.Marshal(input)
-	return json.Unmarshal(data, out)
-}
-
-// extractUser returns the request auth user or "unauthenticated".
-func extractUser(req *protocol.Request) string {
-	if req.Auth != nil {
-		return req.Auth.User
-	}
-	return "unauthenticated"
 }
