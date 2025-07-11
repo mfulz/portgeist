@@ -35,8 +35,8 @@ Example:
 		}
 
 		var confPath string
-		if cfg.ConfigTemplate != "" {
-			confPath, err = launchcli.GenerateProxyConf(cfg.ConfigTemplate, 8889)
+		if cfg.Launchers[cfg.Default].ConfigTemplate != "" {
+			confPath, err = launchcli.GenerateProxyConf(cfg.Launchers[cfg.Default].ConfigTemplate, 8889)
 			if err != nil {
 				logging.Log.Errorf("Failed to create proxy config: %v\n", err)
 				os.Exit(1)
@@ -44,10 +44,10 @@ Example:
 		}
 
 		err = launchcli.Launch(launchcli.Config{
-			Method:   cfg.Method,
-			Binary:   cfg.Binary,
+			Method:   cfg.Launchers[cfg.Default].Method,
+			Binary:   cfg.Launchers[cfg.Default].Binary,
 			Command:  args,
-			Env:      cfg.Env,
+			Env:      cfg.Launchers[cfg.Default].Env,
 			ConfPath: confPath,
 		})
 		if err != nil {

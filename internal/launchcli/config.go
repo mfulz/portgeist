@@ -5,36 +5,77 @@ package launchcli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/mfulz/portgeist/interfaces/ilauncher"
 	"github.com/mfulz/portgeist/internal/configloader"
 	"gopkg.in/yaml.v3"
 )
 
 // FileConfig defines a YAML-backed launcher configuration.
 // It is loaded from ~/.portgeist/geistctl/launch.yaml or /etc/portgeist/launch.yaml.
-type FileConfig struct {
-	Method         string            `yaml:"method"`          // Launcher method name (e.g. proxychains)
-	Binary         string            `yaml:"binary"`          // Absolute path to wrapper binary
-	Env            map[string]string `yaml:"env"`             // Optional environment variables
-	ConfigTemplate string            `yaml:"config_template"` // Proxy config content with {{PORT}} placeholder
+type LaunchConfig struct {
+	Default   string `yaml:"default"` // Launcher method name (e.g. proxychains)
+	Launchers map[string]*ilauncher.FileConfig
+}
+
+// loadLaunchers scans launchers/*.yaml and builds CLI commands.
+func loadLaunchers(dir string) (map[string]*ilauncher.FileConfig, error) {
+	backends := make(map[string]*ilauncher.FileConfig)
+
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("read launchers dir: %w", err)
+	}
+
+	for _, f := range files {
+		if !strings.HasSuffix(f.Name(), ".yaml") {
+			continue
+		}
+
+		data, err := os.ReadFile(filepath.Join(dir, f.Name()))
+		if err != nil {
+			return nil, fmt.Errorf("read %s: %w", f.Name(), err)
+		}
+
+		var fc ilauncher.FileConfig
+		if err := yaml.Unmarshal(data, &fc); err != nil {
+			return nil, fmt.Errorf("parse %s: %w", f.Name(), err)
+		}
+
+		name := strings.TrimSuffix(f.Name(), ".yaml")
+		backends[name] = &fc
+	}
+
+	return backends, nil
 }
 
 // LoadFileConfig loads the launch configuration file using the configloader.
 // The file is expected at ~/.portgeist/geistctl/launch.yaml or /etc/portgeist/launch.yaml.
-func LoadFileConfig() (*FileConfig, error) {
+func LoadFileConfig() (*LaunchConfig, error) {
 	path, err := configloader.ResolveConfigPath("geistctl", "launch.yaml")
 	if err != nil {
 		return nil, err
 	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
-	var cfg FileConfig
+
+	launcherPath := filepath.Join(filepath.Dir(path), "launchers")
+	launchers, err := loadLaunchers(launcherPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg LaunchConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse yaml: %w", err)
 	}
+	cfg.Launchers = launchers
+
 	return &cfg, nil
 }
 
