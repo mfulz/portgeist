@@ -27,12 +27,20 @@ Examples:
   geistctl launch -- curl http://ipinfo.io  # uses default`,
 }
 
+var (
+	proxyIp   string
+	proxyPort int
+)
+
 func init() {
 	LaunchCmd.PersistentFlags().StringVarP(&proxyName, "proxy", "p", "", "Proxy name")
 	LaunchCmd.PersistentFlags().StringVarP(&daemonName, "daemon", "d", "", "Daemon name from ctl_config")
 	LaunchCmd.PersistentFlags().StringVarP(&controlUser, "user", "u", "admin", "Control user to authenticate as")
 	LaunchCmd.PersistentFlags().StringVar(&overrideAddr, "addr", "", "Direct override address for daemon (unix socket or host:port)")
 	LaunchCmd.PersistentFlags().StringVar(&overrideToken, "token", "", "Auth token for manually specified daemon")
+
+	LaunchCmd.PersistentFlags().StringVarP(&proxyIp, "ip", "I", "", "Override proxy host if no proxy is specified")
+	LaunchCmd.PersistentFlags().IntVarP(&proxyPort, "port", "P", 0, "Override proxy port if no proxy is specified")
 
 	LaunchCmd.RunE = func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 {
@@ -55,24 +63,48 @@ func init() {
 			return fmt.Errorf("unknown launcher: %s", name)
 		}
 
-		ctlcfg := configloader.MustGetConfig[*configcli.Config]()
-		resolve, err := controlcli.ResolveProxy(proxyName, ctlcfg, daemonName, overrideAddr, overrideToken, controlUser)
-		if err != nil {
-			return fmt.Errorf("ipc error during resolve: %w", err)
+		var resolvedHost string
+		var resolvedPort int
+
+		if proxyName != "" {
+			ctlcfg := configloader.MustGetConfig[*configcli.Config]()
+			resolve, err := controlcli.ResolveProxy(proxyName, ctlcfg, daemonName, overrideAddr, overrideToken, controlUser)
+			if err != nil {
+				return fmt.Errorf("ipc error during resolve: %w", err)
+			}
+			logging.Log.Infof("Resolved: %v", resolve)
+
+			if proxyIp != "" {
+				resolvedHost = proxyIp
+			} else {
+				resolvedHost = resolve.Host
+			}
+			if proxyPort != 0 {
+				resolvedPort = proxyPort
+			} else {
+				resolvedPort = resolve.Port
+			}
+		} else {
+			if proxyPort == 0 {
+				return fmt.Errorf("either --proxy or --port must be specified")
+			}
+			if proxyHost == "" {
+				proxyHost = "127.0.0.1"
+			}
+			resolvedHost = proxyHost
+			resolvedPort = proxyPort
 		}
-		logging.Log.Infof("Resolved: %v", resolve)
 
 		backend, err := ilauncher.GetBackend(launcherCfg.Method)
 		if err != nil {
 			return fmt.Errorf("backend not found: %s", launcherCfg.Method)
 		}
 
-		subcmd, err := backend.GetInstance(name, *launcherCfg, resolve.Host, resolve.Port)
+		subcmd, err := backend.GetInstance(name, *launcherCfg, resolvedHost, resolvedPort)
 		if err != nil {
 			return fmt.Errorf("failed to instantiate launcher: %w", err)
 		}
 
-		// we pass args as if they were passed to the subcommand directly
 		subcmd.SetArgs(args)
 		return subcmd.Execute()
 	}
