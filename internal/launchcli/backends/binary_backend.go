@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/mfulz/portgeist/interfaces/ilauncher"
-	"github.com/mfulz/portgeist/internal/launchcli"
 	"github.com/mfulz/portgeist/internal/logging"
 	"github.com/spf13/cobra"
 )
@@ -30,12 +29,12 @@ func (b *binaryBackend) Method() string {
 
 // RegisterCliCmd registers a CLI subcommand under the given parent Cobra command.
 // This allows the backend to expose its own usage and flags if needed.
-func (b *binaryBackend) RegisterCliCmd(parent *cobra.Command, name string, cfg ilauncher.FileConfig, host string, port int, ctx ilauncher.Context) *cobra.Command {
+func (b *binaryBackend) RegisterCliCmd(parent *cobra.Command, name string, cfg ilauncher.FileConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   name,
 		Short: fmt.Sprintf("Launch using backend '%s'", b.Method()),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return b.Execute(name, cfg, host, port, ctx, args)
+			return b.Execute(name, cfg, args)
 		},
 	}
 	parent.AddCommand(cmd)
@@ -44,13 +43,13 @@ func (b *binaryBackend) RegisterCliCmd(parent *cobra.Command, name string, cfg i
 
 // GetCmd builds an exec.Cmd that can be launched externally.
 // It renders config template and replaces placeholders as needed.
-func (b *binaryBackend) GetCmd(name string, cfg ilauncher.FileConfig, host string, port int, ctx ilauncher.Context, args []string) (*exec.Cmd, error) {
+func (b *binaryBackend) GetCmd(name string, cfg ilauncher.FileConfig, args []string) (*exec.Cmd, error) {
 	var confPath string
 	if cfg.ConfigTemplate != "" {
 		runport := 10000 + time.Now().UnixNano()%4000
 		content := strings.ReplaceAll(cfg.ConfigTemplate, "{{RUN_PORT}}", fmt.Sprintf("%d", runport))
-		content = strings.ReplaceAll(content, "{{PORT}}", fmt.Sprintf("%d", port))
-		content = strings.ReplaceAll(content, "{{HOST}}", host)
+		content = strings.ReplaceAll(content, "{{PORT}}", fmt.Sprintf("%d", ilauncher.Ctx.ProxyPort))
+		content = strings.ReplaceAll(content, "{{HOST}}", ilauncher.Ctx.ProxyIP)
 		confPath = filepath.Join(os.TempDir(), fmt.Sprintf("%s_%d.conf", name, time.Now().UnixNano()))
 		if err := os.WriteFile(confPath, []byte(content), 0644); err != nil {
 			return nil, fmt.Errorf("failed to write config: %w", err)
@@ -84,66 +83,10 @@ func (b *binaryBackend) GetCmd(name string, cfg ilauncher.FileConfig, host strin
 
 // Execute launches the binary using internal launch infrastructure.
 // This is used for isolated, non-systemd execution paths.
-func (b *binaryBackend) Execute(name string, cfg ilauncher.FileConfig, host string, port int, ctx ilauncher.Context, args []string) error {
-	cmd, err := b.GetCmd(name, cfg, host, port, ctx, args)
+func (b *binaryBackend) Execute(name string, cfg ilauncher.FileConfig, args []string) error {
+	cmd, err := b.GetCmd(name, cfg, args)
 	if err != nil {
 		return err
 	}
 	return cmd.Run()
-}
-
-// GetInstance returns a Cobra command instance for this launcher backend.
-func (b *binaryBackend) GetInstance(name string, cfg ilauncher.FileConfig, host string, port int, ctx ilauncher.Context) (*cobra.Command, error) {
-	cmd := &cobra.Command{
-		Use:   name,
-		Short: fmt.Sprintf("Launch using binary backend: %s", cfg.Binary),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				fmt.Fprintln(os.Stderr, "Missing command to execute.")
-				os.Exit(1)
-			}
-
-			var confPath string
-			if cfg.ConfigTemplate != "" {
-				runport := 10000 + time.Now().UnixNano()%4000
-				content := strings.ReplaceAll(cfg.ConfigTemplate, "{{RUN_PORT}}", fmt.Sprintf("%d", runport))
-				content = strings.ReplaceAll(content, "{{PORT}}", fmt.Sprintf("%d", port))
-				content = strings.ReplaceAll(content, "{{HOST}}", host)
-				confPath = filepath.Join(os.TempDir(), fmt.Sprintf("%s_%d.conf", name, time.Now().UnixNano()))
-				if err := os.WriteFile(confPath, []byte(content), 0644); err != nil {
-					fmt.Fprintf(os.Stderr, "Failed to write config: %v\n", err)
-					os.Exit(1)
-				}
-
-				logging.Log.Debugf("temp config:\n%s", content)
-			}
-
-			// Expand args_before with {{CONF}} if present
-			var expandedArgs []string
-			for _, arg := range cfg.ArgsBefore {
-				if confPath != "" {
-					arg = strings.ReplaceAll(arg, "{{CONF}}", confPath)
-				}
-				expandedArgs = append(expandedArgs, arg)
-			}
-
-			fullArgs := append(expandedArgs, args...)
-
-			err := launchcli.Launch(launchcli.Config{
-				Method:   cfg.Method,
-				Binary:   cfg.Binary,
-				Command:  fullArgs,
-				Env:      cfg.Env,
-				ConfPath: confPath,
-			})
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Launch failed: %v\n", err)
-				os.Exit(1)
-			}
-
-			return nil
-		},
-	}
-
-	return cmd, nil
 }

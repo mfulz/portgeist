@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var Ctx = &Context{}
+
 // FileConfig represents a launcher config from launchers/*.yaml
 type FileConfig struct {
 	Method         string            `yaml:"method"` // backend type (e.g. "cgroup")
@@ -20,19 +22,21 @@ type FileConfig struct {
 
 // Context holds CLI-level settings passed into launcher backends.
 type Context struct {
-	ProxyName     string
-	DaemonName    string
-	ControlUser   string
-	OverrideAddr  string
-	OverrideToken string
+	ProxyName   string
+	DaemonName  string
+	ControlUser string
+	ControlAddr string
+	ProxyIP     string
+	ProxyPort   int
+	UserToken   string
 }
 
 // LauncherBackend represents a pluggable launch implementation.
 type LauncherBackend interface {
 	Method() string
-	RegisterCliCmd(parent *cobra.Command, name string, cfg FileConfig, host string, port int, ctx Context) *cobra.Command
-	GetCmd(name string, cfg FileConfig, host string, port int, ctx Context, args []string) (*exec.Cmd, error)
-	Execute(name string, cfg FileConfig, host string, port int, ctx Context, args []string) error
+	RegisterCliCmd(parent *cobra.Command, name string, cfg FileConfig) *cobra.Command
+	GetCmd(name string, cfg FileConfig, args []string) (*exec.Cmd, error)
+	Execute(name string, cfg FileConfig, args []string) error
 }
 
 // backendRegistry stores all registered backend types by method name.

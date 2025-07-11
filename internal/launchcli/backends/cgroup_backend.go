@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,7 +17,47 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	autoroute string
+	sliceName string
+)
+
 type cgroupBackend struct{}
+
+func setupRouting(_ string, port int, slice string) error {
+	if autoroute == "" {
+		return nil
+	}
+
+	// Convert slice name to hex cgroup match (simplified fallback)
+	cgroupPath := "/sys/fs/cgroup/system.slice/" + slice + "/cgroup.procs"
+	data, err := os.ReadFile(cgroupPath)
+	if err != nil {
+		return fmt.Errorf("could not read cgroup.procs: %w", err)
+	}
+	pidStr := strings.TrimSpace(string(data))
+	pid, err := strconv.Atoi(pidStr)
+	if err != nil {
+		return fmt.Errorf("invalid pid in cgroup.procs: %w", err)
+	}
+
+	hex := fmt.Sprintf("0x%x", pid)
+
+	switch autoroute {
+	case "nftables":
+		cmd := exec.Command("nft", "add", "rule", "ip", "nat", "output", "meta", "cgroup", hex, "redirect", "to", fmt.Sprintf("%d", port))
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	case "iptables":
+		cmd := exec.Command("iptables", "-t", "nat", "-A", "OUTPUT", "-m", "cgroup", "--cgroup", hex, "-p", "tcp", "-j", "REDIRECT", "--to-ports", fmt.Sprintf("%d", port))
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	default:
+		return fmt.Errorf("unsupported autoroute backend: %s", autoroute)
+	}
+}
 
 func init() {
 	ilauncher.RegisterBackend(&cgroupBackend{})
@@ -26,20 +68,21 @@ func (c *cgroupBackend) Method() string {
 }
 
 // RegisterCliCmd registers a launcher using the cgroup backend as a CLI subcommand.
-func (c *cgroupBackend) RegisterCliCmd(parent *cobra.Command, name string, cfg ilauncher.FileConfig, host string, port int, ctx ilauncher.Context) *cobra.Command {
+func (c *cgroupBackend) RegisterCliCmd(parent *cobra.Command, name string, cfg ilauncher.FileConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   name,
 		Short: "Launch a command in a systemd-run cgroup with background proxy",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return c.Execute(name, cfg, host, port, ctx, args)
+			return c.Execute(name, cfg, args)
 		},
 	}
+	cmd.PersistentFlags().StringVarP(&autoroute, "autoroute", "A", "", "Optional routing backend: 'nftables' or 'iptables'")
 	parent.AddCommand(cmd)
 	return cmd
 }
 
 // GetCmd returns the systemd-run command wrapping the actual user process inside a unique slice.
-func (c *cgroupBackend) GetCmd(name string, cfg ilauncher.FileConfig, host string, port int, ctx ilauncher.Context, args []string) (*exec.Cmd, error) {
+func (c *cgroupBackend) GetCmd(name string, cfg ilauncher.FileConfig, args []string) (*exec.Cmd, error) {
 	if len(args) == 0 {
 		return nil, fmt.Errorf("missing target command")
 	}
@@ -49,7 +92,7 @@ func (c *cgroupBackend) GetCmd(name string, cfg ilauncher.FileConfig, host strin
 
 	// Generate slice name
 	shortID := uuid.New().String()[:8]
-	sliceName := fmt.Sprintf("portgeist-%s.slice", shortID)
+	sliceName = fmt.Sprintf("portgeist-%s.slice", shortID)
 	unitName := "pg-run-" + shortID
 
 	// Build systemd-run wrapper
@@ -81,7 +124,7 @@ func (c *cgroupBackend) GetCmd(name string, cfg ilauncher.FileConfig, host strin
 }
 
 // Execute launches the proxy daemon via binaryBackend and then runs the actual command in a systemd slice.
-func (c *cgroupBackend) Execute(name string, cfg ilauncher.FileConfig, host string, port int, ctx ilauncher.Context, args []string) error {
+func (c *cgroupBackend) Execute(name string, cfg ilauncher.FileConfig, args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("no launch command given")
 	}
@@ -92,7 +135,7 @@ func (c *cgroupBackend) Execute(name string, cfg ilauncher.FileConfig, host stri
 		return fmt.Errorf("missing binary backend for cgroup")
 	}
 
-	helperCmd, err := helper.GetCmd("proxy-helper-"+name, cfg, host, port, ctx, nil)
+	helperCmd, err := helper.GetCmd("proxy-helper-"+name, cfg, nil)
 	if err != nil {
 		return fmt.Errorf("failed to prepare proxy helper: %w", err)
 	}
@@ -104,7 +147,12 @@ func (c *cgroupBackend) Execute(name string, cfg ilauncher.FileConfig, host stri
 	// Give it a moment to spin up
 	time.Sleep(500 * time.Millisecond)
 
-	cmd, err := c.GetCmd(name, cfg, host, port, ctx, args)
+	// Setup nftables or iptables route if requested
+	if err := setupRouting(autoroute, ilauncher.Ctx.ProxyPort, sliceName); err != nil {
+		logging.Log.Warnf("Routing setup failed: %v", err)
+	}
+
+	cmd, err := c.GetCmd(name, cfg, args)
 	if err != nil {
 		return err
 	}
@@ -120,29 +168,4 @@ func (c *cgroupBackend) Execute(name string, cfg ilauncher.FileConfig, host stri
 	}
 
 	return err
-}
-
-func (c *cgroupBackend) ExecuteBak(name string, cfg ilauncher.FileConfig, host string, port int, ctx ilauncher.Context, args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("no launch command given")
-	}
-
-	// Start redsocks/helper daemon
-	helper, err := ilauncher.GetBackend("binary")
-	if err != nil {
-		return fmt.Errorf("missing binary backend for cgroup")
-	}
-
-	go func() {
-		_ = helper.Execute("proxy-helper-"+name, cfg, host, port, ctx, nil)
-	}()
-
-	// Give time to start up
-	time.Sleep(500 * time.Millisecond)
-
-	cmd, err := c.GetCmd(name, cfg, host, port, ctx, args)
-	if err != nil {
-		return err
-	}
-	return cmd.Run()
 }
