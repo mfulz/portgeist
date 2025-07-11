@@ -20,8 +20,8 @@ type LaunchConfig struct {
 	Launchers map[string]*ilauncher.FileConfig
 }
 
-// loadLaunchers scans launchers/*.yaml and builds CLI commands.
-func loadLaunchers(dir string) (map[string]*ilauncher.FileConfig, error) {
+// loadLauncherConfigs scans launchers/*.yaml and builds CLI commands.
+func loadLauncherConfigs(dir string) (map[string]*ilauncher.FileConfig, error) {
 	backends := make(map[string]*ilauncher.FileConfig)
 
 	files, err := os.ReadDir(dir)
@@ -51,9 +51,9 @@ func loadLaunchers(dir string) (map[string]*ilauncher.FileConfig, error) {
 	return backends, nil
 }
 
-// LoadFileConfig loads the launch configuration file using the configloader.
+// LoadLauncherConfig loads the launch configuration file using the configloader.
 // The file is expected at ~/.portgeist/geistctl/launch.yaml or /etc/portgeist/launch.yaml.
-func LoadFileConfig() (*LaunchConfig, error) {
+func LoadLauncherConfig() (*LaunchConfig, error) {
 	path, err := configloader.ResolveConfigPath("geistctl", "launch.yaml")
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func LoadFileConfig() (*LaunchConfig, error) {
 	}
 
 	launcherPath := filepath.Join(filepath.Dir(path), "launchers")
-	launchers, err := loadLaunchers(launcherPath)
+	launchers, err := loadLauncherConfigs(launcherPath)
 	if err != nil {
 		return nil, err
 	}

@@ -10,8 +10,9 @@ import (
 
 // FileConfig represents a launcher config from launchers/*.yaml
 type FileConfig struct {
-	Method         string            `yaml:"method"`          // backend type (e.g. "cgroup")
-	Binary         string            `yaml:"binary"`          // Absolute path to wrapper binary
+	Method         string            `yaml:"method"` // backend type (e.g. "cgroup")
+	Binary         string            `yaml:"binary"` // Absolute path to wrapper binary
+	ArgsBefore     []string          `yaml:"args_before"`
 	Env            map[string]string `yaml:"env"`             // env vars for backend
 	ConfigTemplate string            `yaml:"config_template"` // optional backend-specific config
 }
@@ -19,7 +20,7 @@ type FileConfig struct {
 // LauncherBackend represents a pluggable launch implementation.
 type LauncherBackend interface {
 	Method() string
-	Build(name string, cfg FileConfig) (*cobra.Command, error)
+	GetInstance(name string, cfg FileConfig, host string, port int) (*cobra.Command, error)
 }
 
 // backendRegistry stores all registered backend types by method name.

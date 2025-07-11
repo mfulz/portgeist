@@ -3,56 +3,82 @@
 package cmd
 
 import (
-	"os"
+	"fmt"
 
+	"github.com/mfulz/portgeist/interfaces/ilauncher"
+	"github.com/mfulz/portgeist/internal/configcli"
+	"github.com/mfulz/portgeist/internal/configloader"
+	"github.com/mfulz/portgeist/internal/controlcli"
 	"github.com/mfulz/portgeist/internal/launchcli"
+	_ "github.com/mfulz/portgeist/internal/launchcli/backends"
 	"github.com/mfulz/portgeist/internal/logging"
-
 	"github.com/spf13/cobra"
 )
 
-// LaunchCmd launches an arbitrary command through a proxy wrapper tool.
-// It loads config from ~/.portgeist/geistctl/launch.yaml and supports
-// dynamic proxychains/torsocks configuration with per-launch isolation.
+// LaunchCmd wraps commands using a backend-defined launcher system.
 var LaunchCmd = &cobra.Command{
-	Use:   "launch -- <command> [args...]",
-	Short: "Launch a command through proxy wrapper (e.g. proxychains)",
-	Long: `Wraps a user-specified command with a proxy tool like proxychains.
+	Use:   "launch [launcher] -- <command> [args...]",
+	Short: "Launch a command using proxy wrapper or sandbox",
+	Long: `Starts a command with traffic redirection through a configured launcher backend.
 
-Example:
-  geistctl launch -- curl https://ifconfig.me
-  geistctl launch -- alacritty --class testenv`,
-	Run: func(cmd *cobra.Command, args []string) {
+Examples:
+  geistctl launch proxychains -- curl http://example.com
+  geistctl launch custom1 -- firefox
+  geistctl launch -- curl http://ipinfo.io  # uses default`,
+}
+
+func init() {
+	LaunchCmd.PersistentFlags().StringVarP(&proxyName, "proxy", "p", "", "Proxy name")
+	LaunchCmd.PersistentFlags().StringVarP(&daemonName, "daemon", "d", "", "Daemon name from ctl_config")
+	LaunchCmd.PersistentFlags().StringVarP(&controlUser, "user", "u", "admin", "Control user to authenticate as")
+	LaunchCmd.PersistentFlags().StringVar(&overrideAddr, "addr", "", "Direct override address for daemon (unix socket or host:port)")
+	LaunchCmd.PersistentFlags().StringVar(&overrideToken, "token", "", "Auth token for manually specified daemon")
+
+	LaunchCmd.RunE = func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 {
-			logging.Log.Errorln("Missing command to execute.")
-			os.Exit(1)
+			return fmt.Errorf("no command provided")
 		}
 
-		cfg, err := launchcli.LoadFileConfig()
+		cfg, err := launchcli.LoadLauncherConfig()
 		if err != nil {
-			logging.Log.Errorf("Config error: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("failed to load config: %w", err)
 		}
 
-		var confPath string
-		if cfg.Launchers[cfg.Default].ConfigTemplate != "" {
-			confPath, err = launchcli.GenerateProxyConf(cfg.Launchers[cfg.Default].ConfigTemplate, 8889)
-			if err != nil {
-				logging.Log.Errorf("Failed to create proxy config: %v\n", err)
-				os.Exit(1)
-			}
+		name := cfg.Default
+		if len(args) > 1 && !startsWithDash(args[0]) {
+			name = args[0]
+			args = args[1:]
 		}
 
-		err = launchcli.Launch(launchcli.Config{
-			Method:   cfg.Launchers[cfg.Default].Method,
-			Binary:   cfg.Launchers[cfg.Default].Binary,
-			Command:  args,
-			Env:      cfg.Launchers[cfg.Default].Env,
-			ConfPath: confPath,
-		})
+		launcherCfg, ok := cfg.Launchers[name]
+		if !ok {
+			return fmt.Errorf("unknown launcher: %s", name)
+		}
+
+		ctlcfg := configloader.MustGetConfig[*configcli.Config]()
+		resolve, err := controlcli.ResolveProxy(proxyName, ctlcfg, daemonName, overrideAddr, overrideToken, controlUser)
 		if err != nil {
-			logging.Log.Fatalf("Launch failed: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("ipc error during resolve: %w", err)
 		}
-	},
+		logging.Log.Infof("Resolved: %v", resolve)
+
+		backend, err := ilauncher.GetBackend(launcherCfg.Method)
+		if err != nil {
+			return fmt.Errorf("backend not found: %s", launcherCfg.Method)
+		}
+
+		subcmd, err := backend.GetInstance(name, *launcherCfg, resolve.Host, resolve.Port)
+		if err != nil {
+			return fmt.Errorf("failed to instantiate launcher: %w", err)
+		}
+
+		// we pass args as if they were passed to the subcommand directly
+		subcmd.SetArgs(args)
+		return subcmd.Execute()
+	}
+}
+
+// startsWithDash checks whether a string is a flag (e.g., starts with "-")
+func startsWithDash(s string) bool {
+	return len(s) > 0 && s[0] == '-'
 }
