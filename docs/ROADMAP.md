@@ -3,15 +3,17 @@
 ## 🔹 Version 0.2.x – Access Control & Remote Config
 
 ### ✅ Auth & Roles (Fine-grained Access Control)
+
 | Feature                                 | Status     | Description |
 |----------------------------------------|------------|-------------|
-| Authentication profiles (`admin`, `manage`, `view`) | 🟦 Planned | Each control user is assigned a role with specific permissions |
-| Role-based access enforcement per command | 🟦 Planned | Role evaluation enforced in control server and CLI logic |
-| IPC protocol extension for permission model | 🟦 Planned | Roles and scopes integrated into command handling metadata |
+| Authentication profiles (`admin`, `manage`, `view`) | ✅ Done | Each control user is assigned a role with specific permissions |
+| Role-based access enforcement per command | ✅ Done| Role evaluation enforced in control server and CLI logic |
+| IPC protocol extension for permission model | ✅ Done | Roles and scopes integrated into command handling metadata |
 
 ---
 
 ### ✅ Remote Configuration Management (via `geistctl`)
+
 | Feature                                 | Status     | Description |
 |----------------------------------------|------------|-------------|
 | Manage Hosts (add/remove/update)       | 🟦 Planned | Commands like `geistctl config host add ...` |
@@ -24,12 +26,13 @@
 ## 🔹 Future Versions
 
 ### 🧠 Stability / Observability
+
 - Daemon status/health reporting
 - Persistent proxy autostart states
 - JSON-based structured logging
 
 ### 🧩 Extensibility & Plugins
+
 - Backend plugin registry (dynamic loading)
 - Role-aware audit log with user action tracking
 - Norn-style capability abstraction layer
-

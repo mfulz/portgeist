@@ -36,6 +36,7 @@ type Host struct {
 	Login   string         `mapstructure:"login"`
 	Backend string         `mapstructure:"backend"`
 	Config  map[string]any `yaml:"config,omitempty"`
+	Proxies []string       `mapstructure:"allowed_proxies"`
 }
 
 // Proxy defines a single proxy endpoint configuration.

@@ -2,6 +2,7 @@ package control
 
 import (
 	"encoding/json"
+	"slices"
 
 	"github.com/mfulz/portgeist/internal/acl"
 	"github.com/mfulz/portgeist/internal/configd"
@@ -37,6 +38,15 @@ func StartProxyHandler(cfg *configd.Config, instance configd.ControlInstance) fu
 		user := extractUser(req)
 		if !acl.Can(user, "proxy_start", proxyCfg.ACLs) {
 			return &protocol.Response{Status: "error", Error: "not allowed"}
+		}
+
+		host, ok := cfg.Hosts[proxyCfg.Default]
+		if !ok {
+			return &protocol.Response{Status: "error", Error: "unknown host"}
+		}
+
+		if !slices.Contains(host.Proxies, payload.Name) {
+			return &protocol.Response{Status: "error", Error: "host not allowed"}
 		}
 
 		if err := proxy.StartProxy(payload.Name, proxyCfg, cfg); err != nil {
@@ -154,9 +164,15 @@ func ProxySetActiveHandler(cfg *configd.Config, instance configd.ControlInstance
 			return &protocol.Response{Status: "error", Error: "not allowed"}
 		}
 
-		if _, ok := cfg.Hosts[payload.Host]; !ok {
+		host, ok := cfg.Hosts[payload.Host]
+		if !ok {
 			return &protocol.Response{Status: "error", Error: "unknown host"}
 		}
+
+		if !slices.Contains(host.Proxies, payload.Name) {
+			return &protocol.Response{Status: "error", Error: "host not allowed"}
+		}
+
 		proxyCfg.Default = payload.Host
 		_ = proxy.StopProxy(payload.Name, proxyCfg, cfg)
 		if err := proxy.StartProxy(payload.Name, proxyCfg, cfg); err != nil {
