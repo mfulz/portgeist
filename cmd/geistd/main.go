@@ -29,7 +29,11 @@ func main() {
 	if err := acl.Init(cfg.ACL, []acl.Permission{
 		"proxy_start",
 		"proxy_stop",
+		"proxy_status",
+		"proxy_list",
 		"proxy_info",
+		"proxy_setactive",
+		"proxy_resolve",
 	}); err != nil {
 		logging.Log.Fatalf("[geistd] Failed to init acls: %v", err)
 	}

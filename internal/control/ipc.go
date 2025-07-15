@@ -34,7 +34,10 @@ func StartProxyHandler(cfg *configd.Config, instance configd.ControlInstance) fu
 			return &protocol.Response{Status: "error", Error: "unknown proxy"}
 		}
 
-		// user := extractUser(req)
+		user := extractUser(req)
+		if !acl.Can(user, "proxy_list", proxyCfg.ACLs) {
+			return &protocol.Response{Status: "error", Error: "not allowed"}
+		}
 
 		if err := proxy.StartProxy(payload.Name, proxyCfg, cfg); err != nil {
 			return &protocol.Response{Status: "error", Error: err.Error()}
@@ -53,7 +56,11 @@ func StopProxyHandler(cfg *configd.Config, instance configd.ControlInstance) fun
 			return &protocol.Response{Status: "error", Error: "unknown proxy"}
 		}
 
-		// user := extractUser(req)
+		user := extractUser(req)
+		if !acl.Can(user, "proxy_list", proxyCfg.ACLs) {
+			return &protocol.Response{Status: "error", Error: "not allowed"}
+		}
+
 		if err := proxy.StopProxy(payload.Name, proxyCfg, cfg); err != nil {
 			return &protocol.Response{Status: "error", Error: err.Error()}
 		}
@@ -71,7 +78,11 @@ func ProxyStatusHandler(cfg *configd.Config, instance configd.ControlInstance) f
 			return &protocol.Response{Status: "error", Error: "unknown proxy"}
 		}
 
-		// user := extractUser(req)
+		user := extractUser(req)
+		if !acl.Can(user, "proxy_list", proxyCfg.ACLs) {
+			return &protocol.Response{Status: "error", Error: "not allowed"}
+		}
+
 		status, err := proxy.GetProxyStatus(payload.Name, proxyCfg, cfg)
 		if err != nil {
 			return &protocol.Response{Status: "error", Error: err.Error()}
@@ -82,7 +93,11 @@ func ProxyStatusHandler(cfg *configd.Config, instance configd.ControlInstance) f
 
 func ProxyListHandler(cfg *configd.Config, instance configd.ControlInstance) func(req *protocol.Request) *protocol.Response {
 	return func(req *protocol.Request) *protocol.Response {
-		// user := extractUser(req)
+		user := extractUser(req)
+		if !acl.Can(user, "proxy_list", acl.ACLRuleSet{}) {
+			return &protocol.Response{Status: "error", Error: "not allowed"}
+		}
+
 		var result []string
 		// for name, proxyCfg := range cfg.Proxies.Proxies {
 		for name := range cfg.Proxies.Proxies {
@@ -134,7 +149,11 @@ func ProxySetActiveHandler(cfg *configd.Config, instance configd.ControlInstance
 			return &protocol.Response{Status: "error", Error: "unknown proxy"}
 		}
 
-		// user := extractUser(req)
+		user := extractUser(req)
+		if !acl.Can(user, "proxy_setactive", proxyCfg.ACLs) {
+			return &protocol.Response{Status: "error", Error: "not allowed"}
+		}
+
 		if _, ok := cfg.Hosts[payload.Host]; !ok {
 			return &protocol.Response{Status: "error", Error: "unknown host"}
 		}
@@ -157,7 +176,10 @@ func ResolveProxyHandler(cfg *configd.Config, instance configd.ControlInstance) 
 			return &protocol.Response{Status: "error", Error: "unknown proxy"}
 		}
 
-		// user := extractUser(req)
+		user := extractUser(req)
+		if !acl.Can(user, "proxy_resolve", proxyCfg.ACLs) {
+			return &protocol.Response{Status: "error", Error: "not allowed"}
+		}
 
 		return &protocol.Response{
 			Status: "ok",
