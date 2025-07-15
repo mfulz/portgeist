@@ -40,9 +40,8 @@ type Host struct {
 
 // Proxy defines a single proxy endpoint configuration.
 type Proxy struct {
-	Port    int    `mapstructure:"port"`
-	Default string `mapstructure:"default"`
-	// Allowed         []string       `mapstructure:"allowed"`
+	Port      int            `mapstructure:"port"`
+	Default   string         `mapstructure:"default"`
 	Autostart bool           `mapstructure:"autostart"`
 	ACLs      acl.ACLRuleSet `mapstructure:"acls,omitempty"` // optional object-level access rules
 }
@@ -53,17 +52,11 @@ type ProxiesConfig struct {
 	Proxies map[string]Proxy `mapstructure:",remain"`
 }
 
-// ControlLogin holds a username/token pair for controlling access to proxies.
-type ControlLogin struct {
-	Token string `mapstructure:"token"`
-}
-
 // ControlConfig defines how geistctl communicates with the daemon.
 type ControlConfig struct {
-	Mode   string                  `mapstructure:"mode"`   // "unix" or "tcp"
-	Socket string                  `mapstructure:"socket"` // path to unix socket
-	Listen string                  `mapstructure:"listen"` // only used if mode == "tcp"
-	Logins map[string]ControlLogin `mapstructure:"logins"`
+	Mode   string `mapstructure:"mode"`   // "unix" or "tcp"
+	Socket string `mapstructure:"socket"` // path to unix socket
+	Listen string `mapstructure:"listen"` // only used if mode == "tcp"
 }
 
 // ControlInstance describes a single control interface (e.g. unix socket or TCP listener).
@@ -76,8 +69,7 @@ type ControlInstance struct {
 
 // ControlMultiConfig supports multiple control instances with distinct settings.
 type ControlMultiConfig struct {
-	Logins    map[string]ControlLogin `mapstructure:"logins"`    // known control users and tokens
-	Instances []ControlInstance       `mapstructure:"instances"` // enabled control endpoints
+	Instances []ControlInstance `mapstructure:"instances"` // enabled control endpoints
 }
 
 // LoadConfig loads the portgeist configuration from disk using Viper.
