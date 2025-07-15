@@ -11,6 +11,7 @@ import (
 	"os"
 
 	"github.com/mfulz/portgeist/dispatch"
+	"github.com/mfulz/portgeist/internal/acl"
 	"github.com/mfulz/portgeist/internal/configd"
 	"github.com/mfulz/portgeist/internal/logging"
 	"github.com/mfulz/portgeist/protocol"
@@ -57,24 +58,6 @@ func StartServerInstance(inst configd.ControlInstance, cfg *configd.Config) erro
 	return nil
 }
 
-// Authenticate verifies the request credentials based on the server configuration.
-// If auth is disabled, returns "unauthenticated" as user.
-// If enabled, checks the provided token against the configured control logins.
-// Returns the authenticated username and whether the authentication was successful.
-func Authenticate(req *protocol.Request, cfg *configd.Config, required bool) (string, bool) {
-	if !required {
-		return "unauthenticated", true
-	}
-	if req.Auth == nil {
-		return "", false
-	}
-	entry, ok := cfg.Control.Logins[req.Auth.User]
-	if !ok || entry.Token != req.Auth.Token {
-		return "", false
-	}
-	return req.Auth.User, true
-}
-
 // handleConn handles an individual control connection.
 // It reads a JSON-encoded protocol.Request from the connection,
 // dispatches it via the global dispatcher, and writes the JSON response.
@@ -95,8 +78,9 @@ func handleConn(conn net.Conn, inst configd.ControlInstance, cfg *configd.Config
 			return
 		}
 
-		user, ok := Authenticate(&req, cfg, inst.Auth.Enabled)
-		if !ok {
+		// user, ok := Authenticate(&req, cfg, inst.Auth.Enabled)
+		if !acl.Authenticate(req.Auth) {
+			// if !ok {
 			logging.Log.Infof("[control:%s] Invalid credentials for user: %s", inst.Name, req.Auth.User)
 			_ = encoder.Encode(&protocol.Response{
 				Status: "error",
@@ -107,8 +91,8 @@ func handleConn(conn net.Conn, inst configd.ControlInstance, cfg *configd.Config
 
 		if req.Auth == nil {
 			req.Auth = &protocol.Auth{}
+			req.Auth.User = "anon"
 		}
-		req.Auth.User = user
 		resp := dispatcher.Dispatch(&req)
 		if err := encoder.Encode(resp); err != nil {
 			logging.Log.Infof("[control:%s] Failed to send response: %v", inst.Name, err)

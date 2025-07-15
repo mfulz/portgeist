@@ -5,6 +5,7 @@ import (
 
 	"github.com/mfulz/portgeist/internal/acl"
 	"github.com/mfulz/portgeist/internal/configd"
+	"github.com/mfulz/portgeist/internal/logging"
 	"github.com/mfulz/portgeist/internal/proxy"
 	"github.com/mfulz/portgeist/protocol"
 )
@@ -33,10 +34,7 @@ func StartProxyHandler(cfg *configd.Config, instance configd.ControlInstance) fu
 			return &protocol.Response{Status: "error", Error: "unknown proxy"}
 		}
 
-		user := extractUser(req)
-		if !IsControlAllowed(proxyCfg, user, !instance.Auth.Enabled) {
-			return &protocol.Response{Status: "error", Error: "access denied"}
-		}
+		// user := extractUser(req)
 
 		if err := proxy.StartProxy(payload.Name, proxyCfg, cfg); err != nil {
 			return &protocol.Response{Status: "error", Error: err.Error()}
@@ -55,10 +53,7 @@ func StopProxyHandler(cfg *configd.Config, instance configd.ControlInstance) fun
 			return &protocol.Response{Status: "error", Error: "unknown proxy"}
 		}
 
-		user := extractUser(req)
-		if !IsControlAllowed(proxyCfg, user, !instance.Auth.Enabled) {
-			return &protocol.Response{Status: "error", Error: "access denied"}
-		}
+		// user := extractUser(req)
 		if err := proxy.StopProxy(payload.Name, proxyCfg, cfg); err != nil {
 			return &protocol.Response{Status: "error", Error: err.Error()}
 		}
@@ -76,10 +71,7 @@ func ProxyStatusHandler(cfg *configd.Config, instance configd.ControlInstance) f
 			return &protocol.Response{Status: "error", Error: "unknown proxy"}
 		}
 
-		user := extractUser(req)
-		if !IsControlAllowed(proxyCfg, user, !instance.Auth.Enabled) {
-			return &protocol.Response{Status: "error", Error: "access denied"}
-		}
+		// user := extractUser(req)
 		status, err := proxy.GetProxyStatus(payload.Name, proxyCfg, cfg)
 		if err != nil {
 			return &protocol.Response{Status: "error", Error: err.Error()}
@@ -90,12 +82,13 @@ func ProxyStatusHandler(cfg *configd.Config, instance configd.ControlInstance) f
 
 func ProxyListHandler(cfg *configd.Config, instance configd.ControlInstance) func(req *protocol.Request) *protocol.Response {
 	return func(req *protocol.Request) *protocol.Response {
-		user := extractUser(req)
+		// user := extractUser(req)
 		var result []string
-		for name, proxyCfg := range cfg.Proxies.Proxies {
-			if IsControlAllowed(proxyCfg, user, !instance.Auth.Enabled) {
-				result = append(result, name)
-			}
+		// for name, proxyCfg := range cfg.Proxies.Proxies {
+		for name := range cfg.Proxies.Proxies {
+			// if IsControlAllowed(proxyCfg, user, !instance.Auth.Enabled) {
+			result = append(result, name)
+			// }
 		}
 		return &protocol.Response{
 			Status: "ok",
@@ -117,9 +110,7 @@ func ProxyInfoHandler(cfg *configd.Config, instance configd.ControlInstance) fun
 		}
 
 		user := extractUser(req)
-		if !IsControlAllowed(proxyCfg, user, !instance.Auth.Enabled) {
-			return &protocol.Response{Status: "error", Error: "access denied"}
-		}
+		logging.Log.Debugf("extracted user: %v", user)
 
 		if !acl.Can(user, "proxy_info", proxyCfg.ACLs) {
 			return &protocol.Response{Status: "error", Error: "not allowed"}
@@ -143,10 +134,7 @@ func ProxySetActiveHandler(cfg *configd.Config, instance configd.ControlInstance
 			return &protocol.Response{Status: "error", Error: "unknown proxy"}
 		}
 
-		user := extractUser(req)
-		if !IsControlAllowed(proxyCfg, user, !instance.Auth.Enabled) {
-			return &protocol.Response{Status: "error", Error: "access denied"}
-		}
+		// user := extractUser(req)
 		if _, ok := cfg.Hosts[payload.Host]; !ok {
 			return &protocol.Response{Status: "error", Error: "unknown host"}
 		}
@@ -169,10 +157,7 @@ func ResolveProxyHandler(cfg *configd.Config, instance configd.ControlInstance) 
 			return &protocol.Response{Status: "error", Error: "unknown proxy"}
 		}
 
-		user := extractUser(req)
-		if !IsControlAllowed(proxyCfg, user, !instance.Auth.Enabled) {
-			return &protocol.Response{Status: "error", Error: "access denied"}
-		}
+		// user := extractUser(req)
 
 		return &protocol.Response{
 			Status: "ok",

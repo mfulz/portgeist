@@ -63,15 +63,14 @@ type StatusResponse struct {
 
 // InfoResponse combines proxy config and runtime status.
 type InfoResponse struct {
-	Name       string   `json:"name"`
-	Backend    string   `json:"backend"`
-	Host       string   `json:"host"`
-	Port       int      `json:"port"`
-	Login      string   `json:"login"`
-	Running    bool     `json:"running"`
-	PID        int      `json:"pid"`
-	Allowed    []string `json:"allowed"`
-	ActiveHost string   `json:"active_host"`
+	Name       string `json:"name"`
+	Backend    string `json:"backend"`
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
+	Login      string `json:"login"`
+	Running    bool   `json:"running"`
+	PID        int    `json:"pid"`
+	ActiveHost string `json:"active_host"`
 }
 
 // SetActiveRequest sets the active host for a proxy.

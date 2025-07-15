@@ -16,6 +16,7 @@ import (
 	"slices"
 
 	"github.com/mfulz/portgeist/internal/logging"
+	"github.com/mfulz/portgeist/protocol"
 )
 
 // Permission defines a named right or capability.
@@ -39,6 +40,7 @@ type ACLRule struct {
 type User struct {
 	Name   string   `mapstructure:"name"`
 	Roles  []string `mapstructure:"roles"`
+	Token  string   `mapstructure:"token"`
 	groups []string
 }
 
@@ -178,6 +180,29 @@ func (r *ACLRule) hasSubject(user string) bool {
 	}
 
 	return false
+}
+
+// Authenticate checks if user uses correct token
+func Authenticate(authReq *protocol.Auth) bool {
+	if handled, result := aclValid(); handled {
+		return result
+	}
+
+	if authReq == nil {
+		return false
+	}
+
+	return aclhandle.userCredsValid(authReq.User, authReq.Token)
+}
+
+// authenticate authenticate the user by token verification
+func (a *aclChecker) userCredsValid(user, token string) bool {
+	u, ok := a.users[user]
+	if !ok {
+		return false
+	}
+
+	return u.Token == token
 }
 
 // matchRules checks if the actual user is matching the acl rules

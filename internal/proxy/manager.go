@@ -219,7 +219,6 @@ func GetProxyInfo(name string, p configd.Proxy, cfg *configd.Config) (*protocol.
 		Login:      hostCfg.Login,
 		Running:    running,
 		PID:        pid,
-		Allowed:    p.AllowedControls,
 		ActiveHost: activeHostByProxy[name],
 	}, nil
 }

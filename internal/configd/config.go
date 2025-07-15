@@ -40,12 +40,11 @@ type Host struct {
 
 // Proxy defines a single proxy endpoint configuration.
 type Proxy struct {
-	Port            int            `mapstructure:"port"`
-	Default         string         `mapstructure:"default"`
-	Allowed         []string       `mapstructure:"allowed"`
-	Autostart       bool           `mapstructure:"autostart"`
-	AllowedControls []string       `mapstructure:"allowed_controls"`
-	ACLs            acl.ACLRuleSet `mapstructure:"acls,omitempty"` // optional object-level access rules
+	Port    int    `mapstructure:"port"`
+	Default string `mapstructure:"default"`
+	// Allowed         []string       `mapstructure:"allowed"`
+	Autostart bool           `mapstructure:"autostart"`
+	ACLs      acl.ACLRuleSet `mapstructure:"acls,omitempty"` // optional object-level access rules
 }
 
 // ProxiesConfig holds all proxies and the global bind setting.
@@ -64,29 +63,21 @@ type ControlConfig struct {
 	Mode   string                  `mapstructure:"mode"`   // "unix" or "tcp"
 	Socket string                  `mapstructure:"socket"` // path to unix socket
 	Listen string                  `mapstructure:"listen"` // only used if mode == "tcp"
-	Auth   AuthSettings            `mapstructure:"auth"`
 	Logins map[string]ControlLogin `mapstructure:"logins"`
 }
 
 // ControlInstance describes a single control interface (e.g. unix socket or TCP listener).
 type ControlInstance struct {
-	Name    string       `mapstructure:"name"`    // instance identifier
-	Enabled bool         `mapstructure:"enabled"` // whether this instance is active
-	Mode    string       `mapstructure:"mode"`    // "unix" or "tcp"
-	Listen  string       `mapstructure:"listen"`  // address or socket path
-	Auth    AuthSettings `mapstructure:"auth"`    // authentication settings
+	Name    string `mapstructure:"name"`    // instance identifier
+	Enabled bool   `mapstructure:"enabled"` // whether this instance is active
+	Mode    string `mapstructure:"mode"`    // "unix" or "tcp"
+	Listen  string `mapstructure:"listen"`  // address or socket path
 }
 
 // ControlMultiConfig supports multiple control instances with distinct settings.
 type ControlMultiConfig struct {
 	Logins    map[string]ControlLogin `mapstructure:"logins"`    // known control users and tokens
 	Instances []ControlInstance       `mapstructure:"instances"` // enabled control endpoints
-}
-
-// AuthSettings allows optional authentication for remote control.
-type AuthSettings struct {
-	Enabled bool   `mapstructure:"enabled"`
-	Token   string `mapstructure:"token"`
 }
 
 // LoadConfig loads the portgeist configuration from disk using Viper.

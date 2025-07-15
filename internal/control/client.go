@@ -18,7 +18,6 @@ type ProxyInfo struct {
 	Port         int      `json:"port"`
 	Backend      string   `json:"backend"`
 	Default      string   `json:"default"`
-	Allowed      []string `json:"allowed"`
 	Autostart    bool     `json:"autostart"`
 	Running      bool     `json:"running"`
 	PID          int      `json:"pid"`

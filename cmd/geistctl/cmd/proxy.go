@@ -80,9 +80,9 @@ var proxyInfoCmd = &cobra.Command{
 			return
 		}
 
-		logging.Log.Infof("Name:         %s\nBackend:      %s\nRunning:      %v\nPID:          %d\nHost:         %s:%d\nLogin:        %s\nAllowed:      %v\nActive Host:  %s\n",
+		logging.Log.Infof("Name:         %s\nBackend:      %s\nRunning:      %v\nPID:          %d\nHost:         %s:%d\nLogin:        %s\nActive Host:  %s\n",
 			info.Name, info.Backend, info.Running, info.PID,
-			info.Host, info.Port, info.Login, info.Allowed, info.ActiveHost)
+			info.Host, info.Port, info.Login, info.ActiveHost)
 	},
 }
 
