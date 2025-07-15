@@ -6,6 +6,7 @@ package configd
 import (
 	"fmt"
 
+	"github.com/mfulz/portgeist/internal/acl"
 	"github.com/mfulz/portgeist/internal/configloader"
 	"github.com/mfulz/portgeist/internal/logging"
 	"github.com/spf13/viper"
@@ -19,6 +20,7 @@ type Config struct {
 	Control  ControlMultiConfig        `mapstructure:"control"`
 	Backends map[string]map[string]any `yaml:"backends"`
 	Logger   logging.Config            `mapstructure:"log"`
+	ACL      acl.ACLConfig             `mapstructure:"acl"`
 }
 
 // Login holds SSH/VPN credential information.
@@ -38,11 +40,12 @@ type Host struct {
 
 // Proxy defines a single proxy endpoint configuration.
 type Proxy struct {
-	Port            int      `mapstructure:"port"`
-	Default         string   `mapstructure:"default"`
-	Allowed         []string `mapstructure:"allowed"`
-	Autostart       bool     `mapstructure:"autostart"`
-	AllowedControls []string `mapstructure:"allowed_controls"`
+	Port            int            `mapstructure:"port"`
+	Default         string         `mapstructure:"default"`
+	Allowed         []string       `mapstructure:"allowed"`
+	Autostart       bool           `mapstructure:"autostart"`
+	AllowedControls []string       `mapstructure:"allowed_controls"`
+	ACLs            acl.ACLRuleSet `mapstructure:"acls,omitempty"` // optional object-level access rules
 }
 
 // ProxiesConfig holds all proxies and the global bind setting.

@@ -3,6 +3,7 @@ package control
 import (
 	"encoding/json"
 
+	"github.com/mfulz/portgeist/internal/acl"
 	"github.com/mfulz/portgeist/internal/configd"
 	"github.com/mfulz/portgeist/internal/proxy"
 	"github.com/mfulz/portgeist/protocol"
@@ -36,6 +37,7 @@ func StartProxyHandler(cfg *configd.Config, instance configd.ControlInstance) fu
 		if !IsControlAllowed(proxyCfg, user, !instance.Auth.Enabled) {
 			return &protocol.Response{Status: "error", Error: "access denied"}
 		}
+
 		if err := proxy.StartProxy(payload.Name, proxyCfg, cfg); err != nil {
 			return &protocol.Response{Status: "error", Error: err.Error()}
 		}
@@ -118,6 +120,11 @@ func ProxyInfoHandler(cfg *configd.Config, instance configd.ControlInstance) fun
 		if !IsControlAllowed(proxyCfg, user, !instance.Auth.Enabled) {
 			return &protocol.Response{Status: "error", Error: "access denied"}
 		}
+
+		if !acl.Can(user, "proxy_info", proxyCfg.ACLs) {
+			return &protocol.Response{Status: "error", Error: "not allowed"}
+		}
+
 		info, err := proxy.GetProxyInfo(payload.Name, proxyCfg, cfg)
 		if err != nil {
 			return &protocol.Response{Status: "error", Error: err.Error()}

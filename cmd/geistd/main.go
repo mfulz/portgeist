@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/mfulz/portgeist/dispatch"
+	"github.com/mfulz/portgeist/internal/acl"
 	_ "github.com/mfulz/portgeist/internal/backend"
 	"github.com/mfulz/portgeist/internal/configd"
 	"github.com/mfulz/portgeist/internal/configloader"
@@ -22,9 +23,16 @@ func main() {
 	if err != nil {
 		logging.Log.Fatalf("[geistd] Failed to load config: %v", err)
 	}
-	logging.Log.Debugln("[geistd] Configuration loaded successfully")
-
 	cfg := configloader.MustGetConfig[*configd.Config]()
+	logging.Log.Debugln("[geistd] Configuration loaded successfully:\n%v", cfg)
+
+	if err := acl.Init(cfg.ACL, []acl.Permission{
+		"proxy_start",
+		"proxy_stop",
+		"proxy_info",
+	}); err != nil {
+		logging.Log.Fatalf("[geistd] Failed to init acls: %v", err)
+	}
 
 	// Start autostart proxies
 	for name, p := range cfg.Proxies.Proxies {
