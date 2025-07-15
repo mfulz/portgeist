@@ -35,7 +35,7 @@ func StartProxyHandler(cfg *configd.Config, instance configd.ControlInstance) fu
 		}
 
 		user := extractUser(req)
-		if !acl.Can(user, "proxy_list", proxyCfg.ACLs) {
+		if !acl.Can(user, "proxy_start", proxyCfg.ACLs) {
 			return &protocol.Response{Status: "error", Error: "not allowed"}
 		}
 
@@ -57,7 +57,7 @@ func StopProxyHandler(cfg *configd.Config, instance configd.ControlInstance) fun
 		}
 
 		user := extractUser(req)
-		if !acl.Can(user, "proxy_list", proxyCfg.ACLs) {
+		if !acl.Can(user, "proxy_stop", proxyCfg.ACLs) {
 			return &protocol.Response{Status: "error", Error: "not allowed"}
 		}
 
@@ -79,7 +79,7 @@ func ProxyStatusHandler(cfg *configd.Config, instance configd.ControlInstance) f
 		}
 
 		user := extractUser(req)
-		if !acl.Can(user, "proxy_list", proxyCfg.ACLs) {
+		if !acl.Can(user, "proxy_status", proxyCfg.ACLs) {
 			return &protocol.Response{Status: "error", Error: "not allowed"}
 		}
 
