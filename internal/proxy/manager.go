@@ -149,19 +149,53 @@ func StartProxy(name string, p configd.Proxy, cfg *configd.Config) error {
 
 	activeHostByProxy[name] = p.Default
 
-	if retryCount >= p.RetryCount {
-		retryIdx++
-		if retryIdx >= len(retryFrom) {
-			retryIdx = 0
+	for {
+		logging.Log.Debugf("[proxy] Cycling: retryCount '%d'", retryCount)
+		if retryCount >= p.RetryCount {
+			retryIdx++
+			if retryIdx >= len(retryFrom) {
+				retryIdx = 0
+			}
+			p.Default = retryFrom[retryIdx]
+			retryCount = 0
+			logging.Log.Infof("[proxy] Cycling: setting active host to '%s'", p.Default)
+			hostCfg, ok := cfg.Hosts[p.Default]
+			if !ok {
+				return fmt.Errorf("host '%s' not found for proxy '%s'", p.Default, name)
+			}
+			backendName := hostCfg.Backend
+			if backendName == "" {
+				backendName = "ssh_exec"
+			}
+			backend, err = interfaces.GetBackend(backendName)
+			if err != nil {
+				return fmt.Errorf("unknown backend '%s': %w", backendName, err)
+			}
+
+			// Register restart callback if supported
+			if withNotify, ok := backend.(interfaces.ExitAwareBackend); ok {
+				withNotify.SetExitHandler(func(deadName string) {
+					logging.Log.Infof("[proxy] Detected exit of '%s', attempting restart", deadName)
+					retryCount++
+					_ = StopProxy(deadName, p, cfg)
+					if err := StartProxy(deadName, p, cfg); err != nil {
+						logging.Log.Infof("[proxy] Restart of '%s' failed: %v", deadName, err)
+					} else {
+						logging.Log.Infof("[proxy] Restarted '%s' successfully", deadName)
+					}
+				})
+			}
+
+			activeHostByProxy[name] = p.Default
 		}
-		p.Default = retryFrom[retryIdx]
-		retryCount = 0
-		logging.Log.Infof("[proxy] Cycling: setting active host to '%s'", p.Default)
-	}
-	logging.Log.Debugf("[proxy] Cycling: retryCount '%d'", retryCount)
-	if err := backend.Start(name, p, cfg); err != nil {
-		retryCount++
-		return err
+
+		err = backend.Start(name, p, cfg)
+		if err != nil {
+			logging.Log.Infof("[proxy] Restart of '%s' failed: %v", name, err)
+			retryCount++
+			continue
+		}
+		break
 	}
 
 	if reporting, ok := backend.(interfaces.InstanceReportingBackend); ok {
