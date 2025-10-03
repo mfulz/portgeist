@@ -11,17 +11,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armon/go-socks5"
 	"github.com/mfulz/portgeist/interfaces"
 	"github.com/mfulz/portgeist/internal/configd"
 	"github.com/mfulz/portgeist/internal/logging"
+	"github.com/things-go/go-socks5"
 
 	"golang.org/x/crypto/ssh"
 )
 
 type sshNativeBackend struct {
 	mu           sync.Mutex
-	procs        map[string]ssh.Conn
+	procs        map[string]*ssh.Client
 	settings     map[string]map[string]any
 	stopFlags    map[string]bool
 	exitCallback func(name string)
@@ -29,7 +29,7 @@ type sshNativeBackend struct {
 
 func init() {
 	interfaces.RegisterBackend("ssh_native", &sshNativeBackend{
-		procs:     make(map[string]ssh.Conn),
+		procs:     make(map[string]*ssh.Client),
 		settings:  make(map[string]map[string]any),
 		stopFlags: make(map[string]bool),
 	})
@@ -37,12 +37,12 @@ func init() {
 
 // sshInstance wraps a net.Conn to support graceful Stop via interface.
 type sshNativeInstance struct {
-	conn ssh.Conn
+	conn *ssh.Client
 }
 
 // Stop sends SIGTERM to the process associated with the instance.
 func (s *sshNativeInstance) Stop() {
-	if s.conn != nil && s.conn.RemoteAddr() != nil {
+	if s.conn != nil {
 		_ = s.conn.Close()
 	}
 }
@@ -109,36 +109,55 @@ func (s *sshNativeBackend) Start(name string, p configd.Proxy, cfg *configd.Conf
 
 	logging.Log.Infof("[ssh_native] Launching SOCKS proxy '%s' on %s via %s", name, localAddr, remoteAddr)
 
-	conn, err := ssh.Dial("tcp", remoteAddr, sshConf)
+	sshClient, err := ssh.Dial("tcp", remoteAddr, sshConf)
 	if err != nil {
-		return fmt.Errorf("failed to connect to SSH server: %w", err)
+		return fmt.Errorf("failed to create ssh client: %w", err)
+	}
+
+	serverSocks := socks5.NewServer(
+		socks5.WithDial(
+			func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return sshClient.DialContext(ctx, network, addr)
+			},
+		),
+	)
+
+	l, err := net.Listen("tcp", localAddr)
+	if err != nil {
+		return fmt.Errorf("failed to create ssh client: %w", err)
 	}
 
 	s.mu.Lock()
-	s.procs[name] = conn
+	s.procs[name] = sshClient
 	s.stopFlags[name] = false
 	s.mu.Unlock()
 
+	// ctx, cancel := context.WithCancel(context.Background())
+
+	// go func() {
+	// 	select {
+	// 	case <-ctx.Done():
+	// 		l.Close()
+	// 		return
+	// 	}
+	// }()
+
 	go func() {
-		conf := &socks5.Config{
-			Dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return conn.Dial(network, addr)
-			},
+		// conn, err = sshClient.Dial("tcp4", localAddr)
+		// if err != nil {
+		// 	sshClient.Close()
+		// 	logging.Log.Errorf("failed to create ssh client: %w", err)
+		// }
+		if err := serverSocks.Serve(l); err != nil {
+			logging.Log.Errorf("[ssh_native] Socks error '%s'", err)
 		}
 
-		serverSocks, err := socks5.New(conf)
-		if err != nil {
-			logging.Log.Errorf("[ssh_native] Socks error '%s'", err)
-			conn.Close()
-		}
-		if err := serverSocks.ListenAndServe("tcp", localAddr); err != nil {
-			logging.Log.Errorf("[ssh_native] Socks error '%s'", err)
-			conn.Close()
-		}
-
-		_ = conn.Wait()
 		logging.Log.Infof("[ssh_native] Proxy '%s' exited", name)
+	}()
 
+	go func() {
+		_ = sshClient.Wait()
+		l.Close()
 		s.mu.Lock()
 		intentional := s.stopFlags[name]
 		delete(s.procs, name)
@@ -159,17 +178,14 @@ func (s *sshNativeBackend) Stop(name string) error {
 	s.mu.Lock()
 	s.stopFlags[name] = true
 	conn, ok := s.procs[name]
-	if ok && conn.RemoteAddr() != nil {
-		conn.Close()
-	}
 	s.mu.Unlock()
 
-	if !ok {
+	if !ok || conn == nil {
 		logging.Log.Infof("[ssh_native] No active process found for proxy '%s'", name)
 		return nil
 	}
 
-	logging.Log.Infof("[ssh_native] Stopping proxy '%s' (PID %d)", name, conn.RemoteAddr())
+	logging.Log.Infof("[ssh_native] Stopping proxy '%s' (remote %d)", name, conn.RemoteAddr())
 
 	if err := conn.Close(); err != nil {
 		return fmt.Errorf("failed to close connection for '%s': %w", name, err)
@@ -184,10 +200,10 @@ func (s *sshNativeBackend) Status(name string) (int, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	conn, ok := s.procs[name]
-	if !ok || conn.RemoteAddr() == nil {
+	if !ok || conn == nil {
 		return 0, false
 	}
-	return int(conn.RemoteAddr().(*net.TCPAddr).Port), true
+	return int(conn.LocalAddr().(*net.TCPAddr).Port), true
 }
 
 // GetInstance returns a RunningInstance for the proxy, if active.
@@ -196,7 +212,7 @@ func (s *sshNativeBackend) GetInstance(name string) interfaces.RunningInstance {
 	defer s.mu.Unlock()
 
 	conn, ok := s.procs[name]
-	if !ok || conn.RemoteAddr() == nil {
+	if !ok || conn == nil {
 		return nil
 	}
 	return &sshNativeInstance{conn: conn}
