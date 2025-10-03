@@ -41,10 +41,12 @@ type Host struct {
 
 // Proxy defines a single proxy endpoint configuration.
 type Proxy struct {
-	Port      int            `mapstructure:"port"`
-	Default   string         `mapstructure:"default"`
-	Autostart bool           `mapstructure:"autostart"`
-	ACLs      acl.ACLRuleSet `mapstructure:"acls,omitempty"` // optional object-level access rules
+	Port       int            `mapstructure:"port"`
+	Default    string         `mapstructure:"default"`
+	Autostart  bool           `mapstructure:"autostart"`
+	RetryCount int            `mapstructure:"retry_count"`
+	RetryFrom  []string       `mapstructure:"retry_from"`
+	ACLs       acl.ACLRuleSet `mapstructure:"acls,omitempty"` // optional object-level access rules
 }
 
 // ProxiesConfig holds all proxies and the global bind setting.

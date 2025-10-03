@@ -29,6 +29,12 @@ var (
 
 	// stateCheckInterval sets the iteration wait time for stopping proxy loop
 	stateCheckInterval = 100 * time.Millisecond
+
+	// retryIdx keeps track of the host cycling through retry list
+	retryIdx = 0
+
+	// retryCount keeps track of the actual retry
+	retryCount = 0
 )
 
 // waitUntilStopped polls backend.Status until it reports not running or timeout.
@@ -102,6 +108,17 @@ func StartProxy(name string, p configd.Proxy, cfg *configd.Config) error {
 		return fmt.Errorf("unknown backend '%s': %w", backendName, err)
 	}
 
+	// retry handling and cycling through list
+	if p.RetryCount <= 0 {
+		p.RetryCount = 3
+	}
+	retryFrom := p.RetryFrom
+	if len(retryFrom) <= 0 {
+		for k := range cfg.Hosts {
+			retryFrom = append(retryFrom, k)
+		}
+	}
+
 	// check if already running
 	_, running := backend.Status(name)
 	if running {
@@ -120,6 +137,7 @@ func StartProxy(name string, p configd.Proxy, cfg *configd.Config) error {
 	if withNotify, ok := backend.(interfaces.ExitAwareBackend); ok {
 		withNotify.SetExitHandler(func(deadName string) {
 			logging.Log.Infof("[proxy] Detected exit of '%s', attempting restart", deadName)
+			retryCount++
 			_ = StopProxy(deadName, p, cfg)
 			if err := StartProxy(deadName, p, cfg); err != nil {
 				logging.Log.Infof("[proxy] Restart of '%s' failed: %v", deadName, err)
@@ -131,7 +149,18 @@ func StartProxy(name string, p configd.Proxy, cfg *configd.Config) error {
 
 	activeHostByProxy[name] = p.Default
 
+	if retryCount >= p.RetryCount {
+		retryIdx++
+		if retryIdx >= len(retryFrom) {
+			retryIdx = 0
+		}
+		p.Default = retryFrom[retryIdx]
+		retryCount = 0
+		logging.Log.Infof("[proxy] Cycling: setting active host to '%s'", p.Default)
+	}
+	logging.Log.Debugf("[proxy] Cycling: retryCount '%d'", retryCount)
 	if err := backend.Start(name, p, cfg); err != nil {
+		retryCount++
 		return err
 	}
 
