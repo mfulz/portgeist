@@ -229,9 +229,20 @@ func StopProxy(name string, p configd.Proxy, cfg *configd.Config) error {
 	}
 	backendName := hostCfg.Backend
 	if backendName == "" {
-		backendName = "ssh_exec"
+		return fmt.Errorf("no backend set for host '%s'", hostCfg.Address)
 	}
-	backend, err := interfaces.GetBackend(backendName)
+
+	globalBackendCfg, ok := cfg.Backends[backendName]
+	if !ok {
+		return fmt.Errorf("unknown backend config '%s'", backendName)
+	}
+	backendType, ok := globalBackendCfg["type"]
+	if !ok {
+		return fmt.Errorf("no backend type set for config '%s'", backendName)
+	}
+	logging.Log.Infof("backendType: %s", backendType)
+
+	backend, err := interfaces.GetBackend(backendType.(string))
 	if err != nil {
 		return err
 	}
@@ -254,9 +265,20 @@ func GetProxyStatus(name string, p configd.Proxy, cfg *configd.Config) (*protoco
 	}
 	backendName := hostCfg.Backend
 	if backendName == "" {
-		backendName = "ssh_exec"
+		return nil, fmt.Errorf("no backend set for host '%s'", hostCfg.Address)
 	}
-	backend, err := interfaces.GetBackend(backendName)
+
+	globalBackendCfg, ok := cfg.Backends[backendName]
+	if !ok {
+		return nil, fmt.Errorf("unknown backend config '%s'", backendName)
+	}
+	backendType, ok := globalBackendCfg["type"]
+	if !ok {
+		return nil, fmt.Errorf("no backend type set for config '%s'", backendName)
+	}
+	logging.Log.Infof("backendType: %s", backendType)
+
+	backend, err := interfaces.GetBackend(backendType.(string))
 	if err != nil {
 		return nil, err
 	}
@@ -277,18 +299,29 @@ func GetProxyInfo(name string, p configd.Proxy, cfg *configd.Config) (*protocol.
 	if !ok {
 		return nil, fmt.Errorf("host not found")
 	}
-	backend := hostCfg.Backend
-	if backend == "" {
-		backend = "ssh_exec"
+	backendName := hostCfg.Backend
+	if backendName == "" {
+		return nil, fmt.Errorf("no backend set for host '%s'", hostCfg.Address)
 	}
-	be, err := interfaces.GetBackend(backend)
+
+	globalBackendCfg, ok := cfg.Backends[backendName]
+	if !ok {
+		return nil, fmt.Errorf("unknown backend config '%s'", backendName)
+	}
+	backendType, ok := globalBackendCfg["type"]
+	if !ok {
+		return nil, fmt.Errorf("no backend type set for config '%s'", backendName)
+	}
+	logging.Log.Infof("backendType: %s", backendType)
+
+	backend, err := interfaces.GetBackend(backendType.(string))
 	if err != nil {
 		return nil, err
 	}
-	pid, running := be.Status(name)
+	pid, running := backend.Status(name)
 	return &protocol.InfoResponse{
 		Name:       name,
-		Backend:    backend,
+		Backend:    backendName,
 		Host:       hostCfg.Address,
 		Port:       hostCfg.Port,
 		Login:      hostCfg.Login,
