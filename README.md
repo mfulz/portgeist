@@ -139,19 +139,20 @@ hosts:
     address: losangeles.proxyhost.example.com
     port: 22
     login: pp
-    backend: ssh_exec
+    backend: pp_ssh
   duesseldorf:
     address: duesseldorf.proxyhost.example.com
     port: 22
     login: pp
-    backend: ssh_exec
+    backend: pp_ssh
     config:
       additional_flags:
         - "-o"
         - "StrictHostKeyChecking=no"
 
 backends:
-  ssh_exec:
+  pp_ssh:
+    type: ssh_exec
     additional_flags:
       - "-o"
       - "ExitOnForwardFailure=yes"
@@ -161,12 +162,13 @@ backends:
 
 ## 🧩 Backend Configuration
 
-Each backend may expose its own configuration fields.
+Each backend (set via type) may expose its own configuration fields.
 For `ssh_exec`:
 
 ```yaml
 backends:
-  ssh_exec:
+  pp_ssh:
+    type: ssh_exec
     additional_flags:
       - "-o"
       - "ExitOnForwardFailure=yes"
@@ -178,7 +180,7 @@ You can override backend config per host:
 hosts:
   zurich:
     address: ...
-    backend: ssh_exec
+    backend: pp_ssh
     config:
       additional_flags:
         - "-o"

@@ -15,10 +15,11 @@ import (
 // Config represents the full structure of the portgeist configuration file.
 type Config struct {
 	Logins   map[string]Login          `mapstructure:"logins"`
+	WGLogins map[string]WGLogin        `mapstructure:"wglogins"`
 	Hosts    map[string]Host           `mapstructure:"hosts"`
 	Proxies  ProxiesConfig             `mapstructure:"proxies"`
 	Control  ControlMultiConfig        `mapstructure:"control"`
-	Backends map[string]map[string]any `yaml:"backends"`
+	Backends map[string]map[string]any `mapstructure:"backends"`
 	Logger   logging.Config            `mapstructure:"log"`
 	ACL      acl.ACLConfig             `mapstructure:"acl"`
 }
@@ -27,6 +28,14 @@ type Config struct {
 type Login struct {
 	User     string `mapstructure:"user"`
 	Password string `mapstructure:"password"`
+}
+
+// WGLogin holds WireGuard vpn keys.
+type WGLogin struct {
+	PrivateKey string   `mapstructure:"privatekey"`
+	Address    string   `mapstructure:"address"`
+	MTU        int      `mapstructure:"mtu"`
+	DNS        []string `mapstructure:"dns"`
 }
 
 // Host defines a remote endpoint to connect to.

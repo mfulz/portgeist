@@ -101,11 +101,22 @@ func StartProxy(name string, p configd.Proxy, cfg *configd.Config) error {
 	}
 	backendName := hostCfg.Backend
 	if backendName == "" {
-		backendName = "ssh_exec"
+		return fmt.Errorf("no backend set for host '%s'", hostCfg.Address)
 	}
-	backend, err := interfaces.GetBackend(backendName)
+
+	globalBackendCfg, ok := cfg.Backends[backendName]
+	if !ok {
+		return fmt.Errorf("unknown backend config '%s'", backendName)
+	}
+	backendType, ok := globalBackendCfg["type"]
+	if !ok {
+		return fmt.Errorf("no backend type set for config '%s'", backendName)
+	}
+	logging.Log.Infof("backendType: %s", backendType)
+
+	backend, err := interfaces.GetBackend(backendType.(string))
 	if err != nil {
-		return fmt.Errorf("unknown backend '%s': %w", backendName, err)
+		return fmt.Errorf("unknown backend '%s': %w", backendType, err)
 	}
 
 	// retry handling and cycling through list
@@ -126,7 +137,8 @@ func StartProxy(name string, p configd.Proxy, cfg *configd.Config) error {
 		return nil
 	}
 
-	globalCfg := cfg.Backends[backendName]
+	// globalCfg := cfg.Backends[backendName]
+	globalCfg := globalBackendCfg
 	resolved := mergeConfig(globalCfg, hostCfg.Config)
 
 	if err := backend.Configure(name, resolved); err != nil {
@@ -167,9 +179,9 @@ func StartProxy(name string, p configd.Proxy, cfg *configd.Config) error {
 			if backendName == "" {
 				backendName = "ssh_exec"
 			}
-			backend, err = interfaces.GetBackend(backendName)
+			backend, err = interfaces.GetBackend(backendType.(string))
 			if err != nil {
-				return fmt.Errorf("unknown backend '%s': %w", backendName, err)
+				return fmt.Errorf("unknown backend '%s': %w", backendType, err)
 			}
 
 			// Register restart callback if supported
